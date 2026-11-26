@@ -27,12 +27,15 @@ paseo plugin ls
 
 这需要启用并信任 Paseo 插件，且 daemon 能访问 GitHub 和 npm 注册表。
 
-本地开发时，在此目录安装依赖并检查类型：
+本地开发时，在此目录安装依赖并运行检查。
 
 ```sh
 npm ci --ignore-scripts
 npm run typecheck
+npm test
 ```
+
+GitHub Actions 会在推送到 `main` 和提交 PR 时，用 Node.js 22 和 24 运行类型检查和回归测试。
 
 如果你信任此插件，并且已在 Paseo 的 **设置 → 插件** 启用插件，在同一目录执行以下命令。
 
