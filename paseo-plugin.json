@@ -2,7 +2,8 @@
   "id": "codex-goal-ui",
   "name": "Codex Goal",
   "description": "View and manage Codex goals in Paseo.",
-  "media": ["assets/desktop.png", "assets/mobile.png"],
+  "icon": "assets/icon.png",
+  "media": ["assets/market.png", "assets/desktop.png", "assets/mobile.png"],
   "translations": {
     "zh-CN": {
       "name": "Codex Goal",

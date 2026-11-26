@@ -1,17 +1,26 @@
 import type { PluginHandlerContext, PluginServerContext } from "@getpaseo/plugin/server";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { changeGoal, estimateGoalSeconds, readGoal, type GoalAction, type GoalSnapshot } from "./shared/goal";
+import { changeGoal, estimateGoalSeconds, GoalError, readGoal, type GoalAction, type GoalSnapshot } from "./shared/goal";
 import { readNativeGoal, sqliteHome } from "./server/store";
 
 type Paseo = PluginHandlerContext["paseo"];
 
 const providerEnvironment = z.record(z.string(), z.string()).optional();
 
+async function goalResult(run: () => Promise<GoalSnapshot>) {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof GoalError) return { error: error.code };
+    throw error;
+  }
+}
+
 async function readAgent(paseo: Paseo, agentId: string) {
   const agent = (await paseo.agents.ref(agentId).refresh())?.agent;
   if (!agent || agent.provider !== "codex" || agent.archivedAt || agent.providerUnavailable) {
-    throw new Error("当前 Codex 会话不可用。");
+    throw new GoalError("unavailable");
   }
   return agent;
 }
@@ -33,7 +42,7 @@ async function inspectGoal(paseo: Paseo, agentId: string): Promise<GoalSnapshot>
     return { threadId, goal, liveSeconds };
   } catch (error) {
     console.error("Could not read Codex goal state", error instanceof Error ? error.name : "UnknownError");
-    throw new Error("无法读取 Codex 的目标状态，请检查会话主机上的 Codex 数据目录。");
+    throw new GoalError("read");
   }
 }
 
@@ -53,16 +62,16 @@ function hasApplied(action: GoalAction, before: GoalSnapshot, after: GoalSnapsho
 export default function contribute(server: PluginServerContext) {
   const pending = new Set<string>();
   const lifetime = new AbortController();
-  server.handle(readGoal, ({ agentId }, { paseo }) => inspectGoal(paseo, agentId));
-  server.handle(changeGoal, async ({ agentId, threadId, expected, action }, { paseo }) => {
-    if (pending.has(agentId)) throw new Error("此会话的目标正在更新。");
+  server.handle(readGoal, ({ agentId }, { paseo }) => goalResult(() => inspectGoal(paseo, agentId)));
+  server.handle(changeGoal, ({ agentId, threadId, expected, action }, { paseo }) => goalResult(async () => {
+    if (pending.has(agentId)) throw new GoalError("busy");
     pending.add(agentId);
     try {
       await readAgent(paseo, agentId);
       const handle = paseo.agents.ref(agentId);
       const commands = await handle.commands();
       if (commands.error || !commands.commands.some((command) => command.name === "goal" && command.kind === "command")) {
-        throw new Error("当前 Codex 会话未提供原生 /goal 命令。");
+        throw new GoalError("unsupported");
       }
 
       const before = await inspectGoal(paseo, agentId);
@@ -72,9 +81,9 @@ export default function contribute(server: PluginServerContext) {
         expected?.id !== goal?.id || expected?.objective !== goal?.objective ||
         expected?.status !== goal?.status
       ) {
-        throw new Error("目标已变化，请刷新后再操作。");
+        throw new GoalError("goalChanged");
       }
-      if (action.kind !== "set" && !goal) throw new Error("当前会话没有目标。");
+      if (action.kind !== "set" && !goal) throw new GoalError("noGoal");
 
       const args = action.kind === "set" ? action.objective : action.kind;
       await handle.send(`/goal ${args}`, { activeTurnBehavior: "steer" });
@@ -83,14 +92,14 @@ export default function contribute(server: PluginServerContext) {
         await delay(milliseconds, undefined, { signal: lifetime.signal });
         const after = await inspectGoal(paseo, agentId);
         if (before.threadId && after.threadId !== before.threadId) {
-          throw new Error("Codex 会话已变化，请刷新目标。");
+          throw new GoalError("sessionChanged");
         }
         if (hasApplied(action, before, after)) return after;
       }
-      throw new Error("Codex 尚未确认目标更新，请查看聊天中的 /goal 结果。");
+      throw new GoalError("unconfirmed");
     } finally {
       pending.delete(agentId);
     }
-  });
+  }));
   return () => lifetime.abort();
 }

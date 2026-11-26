@@ -3,6 +3,7 @@ import {
   type PluginButtonIconProps,
   type PluginHostProps,
   useRpc,
+  useTranslation,
 } from "@getpaseo/plugin/client";
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,12 +12,14 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-na
 import {
   changeGoal,
   formatDuration,
+  GoalError,
   readGoal,
   reservedObjectives,
-  statuses,
+  unwrapGoal,
   type GoalAction,
   type GoalSnapshot,
 } from "../shared/goal";
+import { messages } from "./messages";
 
 function goalKey(hostId: string, agentId: string) {
   return ["codex-goal-ui", hostId, agentId];
@@ -26,7 +29,7 @@ function useGoal(hostId: string, agentId: string) {
   const read = useRpc(readGoal);
   return useQuery({
     queryKey: goalKey(hostId, agentId),
-    queryFn: () => read({ agentId }),
+    queryFn: () => unwrapGoal(read({ agentId })),
     staleTime: 1000,
     retry: false,
     refetchInterval: ({ state }) => state.data?.goal?.status === "active" ? 3000 : 10000,
@@ -53,7 +56,11 @@ function useGoalTime(snapshot: GoalSnapshot | undefined, receivedAt: number, sta
 
 export type GoalSubscriptionStatus = "ready" | "failed" | "retrying";
 
-const subscriptionFailure = "Goal 会话同步失败";
+const statusIcons = {
+  active: "CirclePlay",
+  paused: "CirclePause",
+  complete: "CircleCheck",
+} as const;
 
 export function createGoalIcon(
   updateButton: (label: string, title: string) => void,
@@ -61,10 +68,12 @@ export function createGoalIcon(
 ) {
   return function GoalIcon(props: PluginButtonIconProps) {
     const status = useSubscriptionStatus();
+    const { t } = useTranslation(messages);
     const unavailable = status !== "ready";
+    const failureTitle = t("syncFailed");
     useEffect(() => {
-      if (unavailable) updateButton("Goal", subscriptionFailure);
-    }, [unavailable]);
+      if (unavailable) updateButton("Goal", failureTitle);
+    }, [unavailable, failureTitle]);
     if (unavailable) {
       return <Icon name="TriangleAlert" color={props.theme.colors.statusWarning} size={props.size} />;
     }
@@ -73,18 +82,29 @@ export function createGoalIcon(
 }
 
 function GoalIndicator({
-  host, agentId, color, size, updateButton,
+  host, agentId, color, size, theme, updateButton,
 }: Extract<PluginButtonIconProps, { context: "agent" }> & {
   updateButton: (label: string, title: string) => void;
 }) {
   const { data, dataUpdatedAt, isError } = useGoal(host.id, agentId);
+  const { t } = useTranslation(messages);
   const goal = data?.goal;
-  const status = isError ? "读取失败" : goal ? statuses[goal.status] : null;
+  const status = isError ? t("readFailed") : goal ? t(`status.${goal.status}`) : null;
   const { seconds } = useGoalTime(data, dataUpdatedAt, isError);
   const elapsed = seconds === undefined ? null : formatDuration(seconds);
-  const label = elapsed ?? (isError ? "读取失败" : "Goal");
-  const title = ["Codex Goal", status, elapsed && `累计运行 ${elapsed}`].filter(Boolean).join(" · ");
+  const label = elapsed ?? (isError ? t("readFailed") : "Goal");
+  const title = ["Codex Goal", status, elapsed && t("elapsed", { time: elapsed })].filter(Boolean).join(" · ");
   useEffect(() => updateButton(label, title), [label, title, updateButton]);
+  const appearance = {
+    active: theme.colors.accent,
+    paused: theme.colors.statusWarning,
+    complete: theme.colors.statusSuccess,
+  };
+  const iconStatus = goal?.status;
+  if (isError) return <Icon name="TriangleAlert" color={theme.colors.statusWarning} size={size} />;
+  if (iconStatus === "active" || iconStatus === "paused" || iconStatus === "complete") {
+    return <Icon name={statusIcons[iconStatus]} color={appearance[iconStatus]} size={size} />;
+  }
   return <Icon name="Target" color={color} size={size} />;
 }
 
@@ -108,14 +128,15 @@ export function GoalSubscriptionNotice({
   theme, retrying, onRetry,
 }: Pick<PluginHostProps, "theme"> & { retrying: boolean; onRetry: () => void }) {
   const { colors } = theme;
+  const { t } = useTranslation(messages);
   return (
     <View style={{ gap: 10, paddingVertical: 4 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
         <Icon name="TriangleAlert" color={colors.statusWarning} size={16} />
-        <Text style={{ color: colors.foreground, fontWeight: "600", flexShrink: 1 }}>{subscriptionFailure}</Text>
+        <Text style={{ color: colors.foreground, fontWeight: "600", flexShrink: 1 }}>{t("syncFailed")}</Text>
       </View>
       <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted }}>
-        {retrying ? "正在重新同步 Codex 会话…" : "暂时无法同步 Codex 会话。插件会自动重试。"}
+        {t(retrying ? "syncing" : "syncFailedDetail")}
       </Text>
       <Pressable
         accessibilityRole="button"
@@ -132,7 +153,7 @@ export function GoalSubscriptionNotice({
           opacity: retrying ? 0.55 : 1,
         })}
       >
-        <Text style={{ color: colors.foreground }}>{retrying ? "重试中…" : "重试"}</Text>
+        <Text style={{ color: colors.foreground }}>{t(retrying ? "retrying" : "action.retry")}</Text>
       </Pressable>
     </View>
   );
@@ -142,15 +163,16 @@ function GoalControls({
   theme, host, agentId, maxObjectiveHeight,
 }: Extract<PluginButtonContentProps, { context: "agent" }> & { maxObjectiveHeight?: number }) {
   const state = useGoal(host.id, agentId);
+  const { t } = useTranslation(messages);
   const cache = useQueryClient();
   const change = useRpc(changeGoal);
   const key = goalKey(host.id, agentId);
   const [draft, setDraft] = useState<{ objective: string; base: GoalSnapshot } | null>(null);
   const [confirmClear, setConfirmClear] = useState<GoalSnapshot | null>(null);
   const mutation = useMutation({
-    mutationFn: ({ action, base }: { action: GoalAction; base: GoalSnapshot }) => change({
+    mutationFn: ({ action, base }: { action: GoalAction; base: GoalSnapshot }) => unwrapGoal(change({
       agentId, action, threadId: base.threadId, expected: base.goal,
-    }),
+    })),
     onSuccess: async (snapshot) => {
       await cache.cancelQueries({ queryKey: key });
       cache.setQueryData(key, snapshot);
@@ -164,14 +186,17 @@ function GoalControls({
 
   const { colors } = theme;
   const snapshot = state.data;
+  const error = mutation.error ?? state.error;
+  const errorMessage = error instanceof GoalError ? t(`error.${error.code}`) :
+    error ? t(mutation.error ? "error.changeRequest" : "error.readRequest") : null;
   if (!snapshot) {
     return (
       <View style={{ gap: 10 }}>
         <Text style={{ color: colors.foreground }} accessibilityLiveRegion="polite">
-          {state.error?.message ?? "正在读取目标…"}
+          {errorMessage ?? t("loading")}
         </Text>
         {state.isError && (
-          <Action theme={theme} icon="RotateCw" label="重试" disabled={state.isFetching} onPress={() => void state.refetch()} />
+          <Action theme={theme} icon="RotateCw" label={t("action.retry")} disabled={state.isFetching} onPress={() => void state.refetch()} />
         )}
       </View>
     );
@@ -193,17 +218,17 @@ function GoalControls({
     <View style={{ gap: 12 }}>
       {goal ? (
         <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.foreground, fontWeight: "600" }}>{statuses[goal.status]}</Text>
+          <Text style={{ color: colors.foreground, fontWeight: "600" }}>{t(`status.${goal.status}`)}</Text>
           <GoalTime theme={theme} snapshot={snapshot} receivedAt={state.dataUpdatedAt} stale={state.isError} />
         </View>
       ) : (
-        <Text style={{ color: colors.foreground, fontWeight: "600" }}>设置目标</Text>
+        <Text style={{ color: colors.foreground, fontWeight: "600" }}>{t("setup")}</Text>
       )}
 
       <View>
         {desktop && (
           <ScrollView
-            accessibilityLabel={editing ? undefined : "当前目标"}
+            accessibilityLabel={editing ? undefined : t("currentGoal")}
             aria-hidden={editing}
             accessibilityElementsHidden={editing}
             importantForAccessibility={editing ? "no-hide-descendants" : "auto"}
@@ -217,10 +242,10 @@ function GoalControls({
         )}
         {editing && (
           <TextInput
-            accessibilityLabel="目标内容"
+            accessibilityLabel={t("objective")}
             editable={!busy}
             multiline
-            placeholder="输入希望 Codex 持续推进的目标"
+            placeholder={t("placeholder")}
             placeholderTextColor={colors.foregroundMuted}
             value={objective}
             onChangeText={(text) => setDraft({ objective: text, base: draft?.base ?? snapshot })}
@@ -244,55 +269,55 @@ function GoalControls({
         )}
       </View>
 
-      {(invalidObjective || mutation.error || state.error) && (
+      {(invalidObjective || errorMessage) && (
         <Text accessibilityLiveRegion="polite" style={{ color: colors.foreground }}>
-          {invalidObjective ? "目标内容不能是 pause、resume 或 clear。" : (mutation.error ?? state.error)?.message}
+          {invalidObjective ? t("error.invalidObjective") : errorMessage}
         </Text>
       )}
 
       {confirmClear && (
-        <Text style={{ color: colors.foreground }}>清除当前目标？</Text>
+        <Text style={{ color: colors.foreground }}>{t("confirmClear")}</Text>
       )}
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {confirmClear ? (
           <>
-            <Action theme={theme} icon="Trash2" label="确认清除" destructive disabled={busy} onPress={() => submit({ kind: "clear" }, confirmClear)} />
-            <Action theme={theme} icon="X" label="取消" disabled={mutation.isPending} onPress={() => setConfirmClear(null)} />
+            <Action theme={theme} icon="Trash2" label={t("action.confirmClear")} destructive disabled={busy} onPress={() => submit({ kind: "clear" }, confirmClear)} />
+            <Action theme={theme} icon="X" label={t("action.cancel")} disabled={mutation.isPending} onPress={() => setConfirmClear(null)} />
           </>
         ) : editing ? (
           <>
             <Action
               theme={theme}
               icon={goal ? "Check" : "Play"}
-              label={goal?.status === "active" ? "保存" : goal ? "保存并继续" : "开始"}
+              label={t(goal?.status === "active" ? "action.save" : goal ? "action.saveAndResume" : "action.start")}
               disabled={busy || !normalized || invalidObjective || normalized === goal?.objective}
               onPress={() => submit({ kind: "set", objective: normalized }, draft?.base)}
             />
             {goal && (
-              <Action theme={theme} icon="X" label="取消" disabled={mutation.isPending} onPress={() => setDraft(null)} />
+              <Action theme={theme} icon="X" label={t("action.cancel")} disabled={mutation.isPending} onPress={() => setDraft(null)} />
             )}
           </>
         ) : (
           <>
             {goal?.status === "active" && (
-              <Action theme={theme} icon="Pause" label="暂停" disabled={busy} onPress={() => submit({ kind: "pause" })} />
+              <Action theme={theme} icon="Pause" label={t("action.pause")} disabled={busy} onPress={() => submit({ kind: "pause" })} />
             )}
             {canResume && (
-              <Action theme={theme} icon="Play" label="继续" disabled={busy} onPress={() => submit({ kind: "resume" })} />
+              <Action theme={theme} icon="Play" label={t("action.resume")} disabled={busy} onPress={() => submit({ kind: "resume" })} />
             )}
             {goal && (
-              <Action theme={theme} icon="Pencil" label="编辑" disabled={busy} onPress={() => setDraft({ objective: goal.objective, base: snapshot })} />
+              <Action theme={theme} icon="Pencil" label={t("action.edit")} disabled={busy} onPress={() => setDraft({ objective: goal.objective, base: snapshot })} />
             )}
-            <Action theme={theme} icon="Trash2" label="清除" destructive disabled={busy} onPress={() => setConfirmClear(snapshot)} />
+            <Action theme={theme} icon="Trash2" label={t("action.clear")} destructive disabled={busy} onPress={() => setConfirmClear(snapshot)} />
           </>
         )}
         {state.isError && (
-          <Action theme={theme} icon="RotateCw" label="重试" disabled={state.isFetching} onPress={() => void state.refetch()} />
+          <Action theme={theme} icon="RotateCw" label={t("action.retry")} disabled={state.isFetching} onPress={() => void state.refetch()} />
         )}
       </View>
       {mutation.isPending && (
-        <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted }}>正在更新目标…</Text>
+        <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted }}>{t("updating")}</Text>
       )}
     </View>
   );
@@ -314,10 +339,11 @@ function GoalTime({
   theme, snapshot, receivedAt, stale,
 }: Pick<PluginHostProps, "theme"> & { snapshot: GoalSnapshot; receivedAt: number; stale: boolean }) {
   const { seconds } = useGoalTime(snapshot, receivedAt, stale);
+  const { t } = useTranslation(messages);
   if (seconds === undefined) return null;
   return (
     <Text style={{ color: theme.colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>
-      累计运行 {formatDuration(seconds)}
+      {t("elapsed", { time: formatDuration(seconds) })}
     </Text>
   );
 }

@@ -2,7 +2,7 @@
 
 Codex Goal displays the current Codex goal and its elapsed time beside the agent's composer. Open the button to read or edit the objective, pause or resume it, or clear it.
 
-The plugin's controls, status labels, and error messages are available in Simplified Chinese only.
+The interface follows Paseo's language. It uses Simplified Chinese when selected and English for other languages. The composer button shows a different icon for in-progress, paused, and completed goals.
 
 If session sync fails, the plugin retries automatically. You can also retry from the Goal warning or, if the Goal button has yet to appear, from the composer's extra controls.
 
