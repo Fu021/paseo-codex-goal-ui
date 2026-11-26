@@ -6,7 +6,7 @@ import {
 } from "@getpaseo/plugin/client";
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import {
   changeGoal,
@@ -51,8 +51,23 @@ function useGoalTime(snapshot: GoalSnapshot | undefined, receivedAt: number, sta
   };
 }
 
-export function createGoalIcon(updateButton: (label: string, title: string) => void) {
+export type GoalSubscriptionStatus = "ready" | "failed" | "retrying";
+
+const subscriptionFailure = "Goal 会话同步失败";
+
+export function createGoalIcon(
+  updateButton: (label: string, title: string) => void,
+  useSubscriptionStatus: () => GoalSubscriptionStatus,
+) {
   return function GoalIcon(props: PluginButtonIconProps) {
+    const status = useSubscriptionStatus();
+    const unavailable = status !== "ready";
+    useEffect(() => {
+      if (unavailable) updateButton("Goal", subscriptionFailure);
+    }, [unavailable]);
+    if (unavailable) {
+      return <Icon name="TriangleAlert" color={props.theme.colors.statusWarning} size={props.size} />;
+    }
     return props.context === "agent" ? <GoalIndicator {...props} updateButton={updateButton} /> : null;
   };
 }
@@ -73,7 +88,7 @@ function GoalIndicator({
   return <Icon name="Target" color={color} size={size} />;
 }
 
-export function GoalPopover(props: PluginButtonContentProps) {
+export function GoalPopover(props: PluginButtonContentProps & { notice?: ReactNode }) {
   const { width, height } = useWindowDimensions();
   if (props.context !== "agent") return null;
 
@@ -81,7 +96,44 @@ export function GoalPopover(props: PluginButtonContentProps) {
   const maxObjectiveHeight = props.layout.compact ? undefined : Math.min(300, Math.max(112, height - 168));
   return (
     <View style={{ width: contentWidth }}>
-      <GoalControls key={props.agentId} {...props} maxObjectiveHeight={maxObjectiveHeight} />
+      {props.notice}
+      <View style={props.notice ? { display: "none" } : undefined}>
+        <GoalControls key={props.agentId} {...props} maxObjectiveHeight={maxObjectiveHeight} />
+      </View>
+    </View>
+  );
+}
+
+export function GoalSubscriptionNotice({
+  theme, retrying, onRetry,
+}: Pick<PluginHostProps, "theme"> & { retrying: boolean; onRetry: () => void }) {
+  const { colors } = theme;
+  return (
+    <View style={{ gap: 10, paddingVertical: 4 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+        <Icon name="TriangleAlert" color={colors.statusWarning} size={16} />
+        <Text style={{ color: colors.foreground, fontWeight: "600", flexShrink: 1 }}>{subscriptionFailure}</Text>
+      </View>
+      <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted }}>
+        {retrying ? "正在重新同步 Codex 会话…" : "暂时无法同步 Codex 会话。插件会自动重试。"}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: retrying, busy: retrying }}
+        disabled={retrying}
+        onPress={onRetry}
+        style={({ pressed }) => ({
+          alignSelf: "flex-start",
+          minHeight: 36,
+          justifyContent: "center",
+          paddingHorizontal: 12,
+          borderRadius: 7,
+          backgroundColor: pressed ? colors.surface2 : colors.surface1,
+          opacity: retrying ? 0.55 : 1,
+        })}
+      >
+        <Text style={{ color: colors.foreground }}>{retrying ? "重试中…" : "重试"}</Text>
+      </Pressable>
     </View>
   );
 }
