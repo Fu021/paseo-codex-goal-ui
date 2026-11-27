@@ -113,7 +113,7 @@ export function createGoalIcon(
     const status = useSubscriptionStatus();
     const { t } = useTranslation(messages);
     const unavailable = status !== "ready";
-    const failureTitle = t("syncFailed");
+    const failureTitle = props.layout.compact ? "Goal" : t("syncFailed");
     useEffect(() => {
       if (unavailable) updateButton("Goal", failureTitle);
     }, [unavailable, failureTitle]);
@@ -125,7 +125,7 @@ export function createGoalIcon(
 }
 
 function GoalIndicator({
-  host, agentId, size, updateButton,
+  host, agentId, layout, size, updateButton,
 }: Extract<PluginButtonIconProps, { context: "agent" }> & {
   updateButton: (label: string, title: string) => void;
 }) {
@@ -136,7 +136,8 @@ function GoalIndicator({
   const { seconds } = useGoalTime(data, dataUpdatedAt, readFailed);
   const elapsed = seconds === undefined ? null : formatDuration(seconds);
   const label = elapsed ?? (readFailed ? t("readFailed") : "Goal");
-  const title = ["Codex Goal", status, elapsed && t("elapsed", { time: elapsed })].filter(Boolean).join(" · ");
+  const title = layout.compact ? "Goal" :
+    ["Codex Goal", status, elapsed && t("elapsed", { time: elapsed })].filter(Boolean).join(" · ");
   useEffect(() => updateButton(label, title), [label, title, updateButton]);
   if (readFailed) return <GoalWarningIcon size={size} chineseTextOffset={elapsed === null ? 1.5 : 0} />;
   return <GoalStatusIcon status={goal?.status ?? "unset"} size={size} />;
@@ -153,7 +154,7 @@ export function GoalPopover(props: PluginButtonContentProps & { sync?: Subscript
   const contentWidth = props.layout.compact ? undefined : Math.min(394, Math.max(0, width - 56));
   const maxObjectiveHeight = props.layout.compact ? undefined : Math.min(300, Math.max(112, height - 168));
   return (
-    <View style={{ width: contentWidth }}>
+    <View style={{ width: contentWidth, marginTop: props.layout.compact ? -16 : undefined }}>
       {props.sync && (
         <GoalKeyboardScope bindings={bindings} actions={{ retry: props.sync.retrying ? undefined : props.sync.onRetry }}>
           <GoalSubscriptionNotice theme={props.theme} {...props.sync} shortcut={bindings?.retry} />
@@ -292,27 +293,25 @@ function GoalControls({
 
   return (
     <GoalKeyboardScope bindings={bindings} actions={{ save, edit, clear, pauseResume, retry }}>
-      {goal ? (
-        <View style={{ gap: 8 }}>
-          <View style={styles.statusRow}>
-            <View
-              aria-hidden
-              style={[styles.statusTile, { backgroundColor: colors.surface1, borderColor: colors.border }]}
-            >
-              <GoalStatusIcon status={goal.status} size={layout.compact ? 20 : 18} />
-            </View>
-            <View style={styles.statusText}>
-              <Text style={{ color: colors.foreground, fontWeight: "600" }}>{t(`status.${goal.status}`)}</Text>
-              <GoalTime theme={theme} snapshot={snapshot} receivedAt={state.dataUpdatedAt} stale={readFailed} />
-            </View>
+      <View style={{ gap: 8 }}>
+        <View style={styles.statusRow}>
+          <View
+            aria-hidden
+            style={[styles.statusTile, { backgroundColor: colors.surface1, borderColor: colors.border }]}
+          >
+            <GoalStatusIcon status={goal?.status ?? "unset"} size={layout.compact ? 20 : 18} />
           </View>
-          {goal.status === "blocked" && (
-            <Text style={{ color: colors.foregroundMuted }}>{t("blockedDetail")}</Text>
-          )}
+          <View style={styles.statusText}>
+            <Text style={{ color: colors.foreground, fontWeight: "600" }}>{goal ? t(`status.${goal.status}`) : t("setup")}</Text>
+            {goal && (
+              <GoalTime theme={theme} snapshot={snapshot} receivedAt={state.dataUpdatedAt} stale={readFailed} />
+            )}
+          </View>
         </View>
-      ) : (
-        <Text style={{ color: colors.foreground, fontWeight: "600" }}>{t("setup")}</Text>
-      )}
+        {goal?.status === "blocked" && (
+          <Text style={{ color: colors.foregroundMuted }}>{t("blockedDetail")}</Text>
+        )}
+      </View>
 
       <View>
         {desktop && (

@@ -82,7 +82,7 @@ export default function contribute(client: PluginClientContext) {
       workspaceId,
       agentId: id,
       button: {
-        title: "Codex Goal",
+        title: "Goal",
         label: "Goal",
         icon,
         behavior: { kind: "popover", Content: GoalContent },

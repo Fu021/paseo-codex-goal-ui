@@ -16,11 +16,13 @@ On desktop and web, shortcuts apply while the Goal panel has focus. The defaults
 
 Under **Settings → Plugins → Codex Goal**, choose the save binding from its dropdown. To change an edit, pause/resume, clear, or retry binding, click its current key and type one letter or choose **Delete**. Choose **Unassigned** to disable a shortcut. Settings are saved per Paseo host.
 
-These desktop and mobile layout previews are rendered in a browser with sample data.
+These Paseo screenshots use sample data in desktop and mobile-sized browsers.
 
 | Desktop | Mobile |
 | --- | --- |
 | ![Desktop preview](assets/desktop.png) | ![Mobile preview](assets/mobile.png) |
+
+![All eight Goal status icons](assets/market.png)
 
 ## Installation
 
