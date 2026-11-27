@@ -4,6 +4,12 @@
   "description": "View and manage Codex goals in Paseo.",
   "icon": "assets/icon.png",
   "media": ["assets/market.png", "assets/desktop.png", "assets/mobile.png"],
+  "translations": {
+    "zh-CN": {
+      "name": "Codex Goal",
+      "description": "在 Paseo 中查看和管理 Codex 目标。"
+    }
+  },
   "requirements": {
     "paseo": ">=0.16.0"
   }
