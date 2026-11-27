@@ -15,6 +15,7 @@ import {
   changeGoal,
   formatDuration,
   GoalError,
+  matchesExpectedGoal,
   readGoal,
   reservedObjectives,
   unwrapGoal,
@@ -78,28 +79,30 @@ function useGoalTime(snapshot: GoalSnapshot | undefined, receivedAt: number, sta
 
 export type GoalSubscriptionStatus = "ready" | "failed" | "retrying";
 
-const warningColor = "#c09664";
-
-const warningIcon = {
-  svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 2.2 18a2 2 0 0 0 1.7 3h16.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/></svg>',
-};
-
 const goalStatusIcons = {
-  active: { name: "CirclePlay", color: "#20744a" },
-  paused: { name: "CirclePause", color: warningColor },
-  blocked: { name: "OctagonX", color: "#d8847b" },
-  usage_limited: { name: "Clock", color: warningColor },
-  budget_limited: { name: "CircleDollarSign", color: warningColor },
-  complete: { name: "BadgeCheck", color: "#4f87d4" },
-} satisfies Record<Goal["status"], { name: string; color: string }>;
+  unset: { name: "Target", color: "#6d7988" },
+  active: { name: "CirclePlay", color: "#31844d" },
+  paused: { name: "CirclePause", color: "#9b7d15" },
+  blocked: { name: "OctagonX", color: "#c8475d" },
+  usage_limited: { name: "Clock", color: "#1d8690" },
+  budget_limited: { name: "CircleDollarSign", color: "#8a64c4" },
+  complete: { name: "BadgeCheck", color: "#3a78c9" },
+  unavailable: { name: "TriangleAlert", color: "#c0672d" },
+} satisfies Record<Goal["status"] | "unset" | "unavailable", { name: string; color: string }>;
 
-function GoalWarningIcon({ size }: { size: number }) {
-  return <Icon icon={warningIcon} color={warningColor} size={size} />;
-}
-
-function GoalStatusIcon({ status, size }: { status: Goal["status"]; size: number }) {
+function GoalStatusIcon({ status, size }: { status: keyof typeof goalStatusIcons; size: number }) {
   const { name, color } = goalStatusIcons[status];
   return <Icon name={name} color={color} size={size} />;
+}
+
+function GoalWarningIcon({ size, chineseTextOffset = 0 }: { size: number; chineseTextOffset?: number }) {
+  const { locale } = useTranslation(messages);
+  const translateY = locale.startsWith("zh") ? chineseTextOffset : 0;
+  return (
+    <View style={{ width: size, height: size, flexShrink: 0, transform: [{ translateY }] }}>
+      <GoalStatusIcon status="unavailable" size={size} />
+    </View>
+  );
 }
 
 export function createGoalIcon(
@@ -122,7 +125,7 @@ export function createGoalIcon(
 }
 
 function GoalIndicator({
-  host, agentId, size, theme, updateButton,
+  host, agentId, size, updateButton,
 }: Extract<PluginButtonIconProps, { context: "agent" }> & {
   updateButton: (label: string, title: string) => void;
 }) {
@@ -135,9 +138,8 @@ function GoalIndicator({
   const label = elapsed ?? (readFailed ? t("readFailed") : "Goal");
   const title = ["Codex Goal", status, elapsed && t("elapsed", { time: elapsed })].filter(Boolean).join(" · ");
   useEffect(() => updateButton(label, title), [label, title, updateButton]);
-  if (readFailed) return <GoalWarningIcon size={size} />;
-  if (goal) return <GoalStatusIcon status={goal.status} size={size} />;
-  return <Icon name="Target" color={theme.colors.accent} size={size} />;
+  if (readFailed) return <GoalWarningIcon size={size} chineseTextOffset={elapsed === null ? 1.5 : 0} />;
+  return <GoalStatusIcon status={goal?.status ?? "unset"} size={size} />;
 }
 
 type SubscriptionRetry = { retrying: boolean; onRetry: () => void };
@@ -172,7 +174,7 @@ export function GoalSubscriptionNotice({
   return (
     <View style={{ gap: 10, paddingVertical: 4 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-        <GoalWarningIcon size={16} />
+        <GoalWarningIcon size={16} chineseTextOffset={2} />
         <Text style={{ color: colors.foreground, fontWeight: "600", flexShrink: 1 }}>{t("syncFailed")}</Text>
       </View>
       <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted }}>
@@ -203,7 +205,7 @@ export function GoalSubscriptionNotice({
 function GoalReadError({ theme, message }: Pick<PluginHostProps, "theme"> & { message: string }) {
   return (
     <View style={styles.statusRow}>
-      <GoalWarningIcon size={16} />
+      <GoalWarningIcon size={16} chineseTextOffset={2} />
       <Text accessibilityLiveRegion="polite" style={{ color: theme.colors.foreground, flexShrink: 1 }}>
         {message}
       </Text>
@@ -262,14 +264,23 @@ function GoalControls({
 
   const goal = snapshot.goal;
   const busy = mutation.isPending || readFailed;
-  const editing = Boolean(draft) || !goal;
+  const editing = !confirmClear && (Boolean(draft) || !goal);
+  const staleDraft = draft && !matchesExpectedGoal(snapshot, draft.base.threadId, draft.base.goal);
+  const staleConfirmation = confirmClear && !matchesExpectedGoal(snapshot, confirmClear.threadId, confirmClear.goal);
   const objective = draft?.objective ?? "";
   const normalized = objective.trim();
   const invalidObjective = reservedObjectives.test(normalized);
+  const actionError = staleDraft || staleConfirmation ? t("error.staleAction") :
+    invalidObjective ? t("error.invalidObjective") : changeError;
   const submit = (action: GoalAction, base = snapshot) => mutation.mutate({ action, base });
+  const dismiss = () => {
+    setDraft(null);
+    setConfirmClear(null);
+    mutation.reset();
+  };
   const canResume = goal && ["paused", "blocked", "usage_limited"].includes(goal.status);
   const viewing = !editing && !confirmClear;
-  const save = !busy && editing && normalized && !invalidObjective && normalized !== goal?.objective
+  const save = !busy && editing && !staleDraft && normalized && !invalidObjective && normalized !== goal?.objective
     ? () => submit({ kind: "set", objective: normalized }, draft?.base) : undefined;
   const edit = !busy && viewing && goal ? () => setDraft({ objective: goal.objective, base: snapshot }) : undefined;
   const clear = !busy && viewing && goal ? () => setConfirmClear(snapshot) : undefined;
@@ -349,9 +360,9 @@ function GoalControls({
       </View>
 
       {readError && <GoalReadError theme={theme} message={readError} />}
-      {(invalidObjective || changeError) && (
+      {actionError && (
         <Text accessibilityLiveRegion="polite" style={{ color: colors.foreground }}>
-          {invalidObjective ? t("error.invalidObjective") : changeError}
+          {actionError}
         </Text>
       )}
 
@@ -362,10 +373,10 @@ function GoalControls({
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {confirmClear ? (
           <>
-            <Action {...actionProps} key="cancel-clear" icon="X" label={t("action.cancel")} focusOnMount
-              onPress={mutation.isPending ? undefined : () => setConfirmClear(null)} />
             <Action {...actionProps} key="confirm-clear" icon="Trash2" label={t("action.confirmClear")} destructive
-              onPress={busy ? undefined : () => submit({ kind: "clear" }, confirmClear)} />
+              onPress={busy || staleConfirmation ? undefined : () => submit({ kind: "clear" }, confirmClear)} />
+            <Action {...actionProps} key="cancel-clear" icon="X" label={t("action.cancel")} focusOnMount
+              onPress={mutation.isPending ? undefined : dismiss} />
           </>
         ) : editing ? (
           <>
@@ -376,8 +387,8 @@ function GoalControls({
               shortcut={bindings?.save}
               onPress={save}
             />
-            {goal && (
-              <Action {...actionProps} icon="X" label={t("action.cancel")} onPress={mutation.isPending ? undefined : () => setDraft(null)} />
+            {(goal || staleDraft) && (
+              <Action {...actionProps} icon="X" label={t("action.cancel")} onPress={mutation.isPending ? undefined : dismiss} />
             )}
           </>
         ) : (

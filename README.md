@@ -14,7 +14,7 @@ The plugin reads only the current session's goal. Each operation is initiated by
 
 On desktop and web, shortcuts apply while the Goal panel has focus. The defaults are **Enter** to start or save, **Shift+Enter** for a new line, **E** to edit, **P** to pause or resume, **Delete** to open clear confirmation, and **R** to retry after a read or sync failure. On wide layouts, Paseo closes the panel with **Esc**.
 
-Under **Settings → Plugins → Codex Goal**, you can change the save, edit, pause/resume, clear, and retry bindings. Choose **Unassigned** to disable any of them and continue using the buttons. Settings are saved per Paseo host.
+Under **Settings → Plugins → Codex Goal**, choose the save binding from its dropdown. To change an edit, pause/resume, clear, or retry binding, click its current key and type one letter or choose **Delete**. Choose **Unassigned** to disable a shortcut. Settings are saved per Paseo host.
 
 These desktop and mobile layout previews are rendered in a browser with sample data.
 
@@ -26,16 +26,24 @@ These desktop and mobile layout previews are rendered in a browser with sample d
 
 Requires Paseo client and daemon 0.16.0 or later, a version of Codex that supports `/goal` (Paseo's minimum is Codex CLI 0.128.0), and a plugin runtime with `node:sqlite` (Node.js 22.13 or later).
 
-To install from npm, run these commands on the machine running the Paseo daemon:
+Install the reviewed release from the [Paseo plugin marketplace](https://paseo.sh/plugins/fu021/codex-goal). Run the CLI commands on the machine running the Paseo daemon.
 
 ```sh
-paseo plugin install npm:codex-goal
+paseo plugin install fu021/codex-goal
 paseo plugin ls
 ```
 
-This requires Paseo plugins to be enabled and trusted, and the daemon must be able to access the npm registry.
+Enable plugins under **Settings → Plugins** and make sure the daemon can reach the npm registry. To install directly from npm, use `paseo plugin install npm:codex-goal`. Marketplace installations use the version approved by Paseo. Direct npm installations can select a specific release with `npm:codex-goal@<version>`.
 
-If you installed the Git edition under the `codex-goal-ui` ID, record any custom shortcuts before removing it. Install the npm edition, then reapply your shortcuts in Settings → Plugins → Codex Goal. Your goals are stored by Codex and remain available.
+### Migrate from the Git edition
+
+If you installed from the former `fu021/codex-goal-ui` listing or directly from Git, run `paseo plugin ls` to identify the existing installation. Record any custom keyboard shortcuts, run `paseo plugin remove <installed-id>` to remove the Git installation, then install `fu021/codex-goal` as shown above. Reapply your shortcuts in **Settings → Plugins → Codex Goal**. Codex stores your goals separately, so they remain available after migration.
+
+Return to any Codex session and find **Goal** in the plugin button area beside the composer. When using a remote host, both the plugin and Codex data must be on that host.
+
+The plugin queries Codex's local SQLite database in read-only mode. It uses the Codex data directory by default and supports `CODEX_HOME`, `CODEX_SQLITE_HOME`, and the top-level `sqlite_home` setting in the user's `config.toml`. If a launch script sets a different data directory for an individual session, point Paseo's Codex Provider environment variables to the same directory.
+
+## Development
 
 For local development, install dependencies and run the checks in this directory:
 
@@ -54,6 +62,15 @@ paseo plugin install "$PWD"
 paseo plugin ls
 ```
 
-Return to any Codex session and find **Goal** in the plugin button area beside the composer. When using a remote host, both the plugin and Codex data must be on that host.
+## Release
 
-The plugin queries Codex's local SQLite database in read-only mode. It uses the Codex data directory by default and supports `CODEX_HOME`, `CODEX_SQLITE_HOME`, and the top-level `sqlite_home` setting in the user's `config.toml`. If a launch script sets a different data directory for an individual session, point Paseo's Codex Provider environment variables to the same directory.
+Publish new versions through the [codex-goal npm package](https://www.npmjs.com/package/codex-goal). GitHub hosts the source and runs CI on `main`.
+
+Staged publishing requires Node.js 22.14 or later, npm 11.15 or later, and an npm account with publish access and two-factor authentication enabled.
+
+1. Update the version in `package.json` and `npm-shrinkwrap.json`, run the development checks, and inspect the package with `npm pack --dry-run --ignore-scripts`.
+2. Stage the package with `npm stage publish`. Use `npm stage list codex-goal` to find the stage ID, then run `npm stage approve <stage-id>` and complete npm two-factor authentication to publish it.
+3. On a test daemon, install the exact release with `paseo plugin install npm:codex-goal@<version>`, check that it is running, and exercise the Goal panel.
+4. Check the automatic update PR for `fu021/codex-goal` in the Paseo registry. The marketplace serves the new version after Paseo approves and merges that update.
+
+[npm staged publishing](https://docs.npmjs.com/staged-publishing/) · [Paseo plugin publishing](https://paseo.sh/docs/plugins/publishing)

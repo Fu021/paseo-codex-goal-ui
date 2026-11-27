@@ -24,6 +24,21 @@ test("live time counts from the newer of the turn start and the goal update", ()
   assert.equal(goal.estimateGoalSeconds(200, turnStart, "invalid", turnStart), null);
 });
 
+test("a draft or confirmation follows its goal identity and ignores elapsed-time updates", () => {
+  const expected = { id: "goal", objective: "First goal", status: "active", seconds: 12 };
+  const snapshot = { threadId: "thread", goal: { ...expected, seconds: 25 }, liveSeconds: 30 };
+  assert.equal(goal.matchesExpectedGoal(snapshot, "thread", expected), true);
+  assert.equal(goal.matchesExpectedGoal(snapshot, "previous-thread", expected), false);
+  assert.equal(goal.matchesExpectedGoal(snapshot, "thread", { ...expected, id: "old-goal" }), false);
+  assert.equal(goal.matchesExpectedGoal(snapshot, "thread", { ...expected, objective: "Old text" }), false);
+  assert.equal(goal.matchesExpectedGoal(snapshot, "thread", { ...expected, status: "paused" }), false);
+  assert.equal(goal.matchesExpectedGoal(snapshot, null, null), false);
+  const cleared = { ...snapshot, goal: null, liveSeconds: null };
+  assert.equal(goal.matchesExpectedGoal(cleared, "thread", expected), false);
+  assert.equal(goal.matchesExpectedGoal(cleared, null, null), true);
+  assert.equal(goal.matchesExpectedGoal(cleared, "previous-thread", null), false);
+});
+
 test("goal reads stop estimating on pause, completion, blocking, or turn end and restart on resume", async (context) => {
   const directory = await mkdtemp(join(tmpdir(), "codex-goal-time-"));
   context.after(() => rm(directory, { recursive: true, force: true }));

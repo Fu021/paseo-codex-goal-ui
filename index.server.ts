@@ -1,7 +1,9 @@
 import type { PluginHandlerContext, PluginServerContext } from "@getpaseo/plugin/server";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { changeGoal, estimateGoalSeconds, GoalError, readGoal, type GoalAction, type GoalSnapshot } from "./shared/goal";
+import {
+  changeGoal, estimateGoalSeconds, GoalError, matchesExpectedGoal, readGoal, type GoalAction, type GoalSnapshot,
+} from "./shared/goal";
 import { shortcutSettings } from "./shared/shortcuts";
 import { readNativeGoal, sqliteHome } from "./server/store";
 
@@ -77,15 +79,8 @@ export default function contribute(server: PluginServerContext) {
       }
 
       const before = await inspectGoal(paseo, agentId);
-      const goal = before.goal;
-      if (
-        (threadId !== before.threadId && (threadId !== null || before.goal !== null)) ||
-        expected?.id !== goal?.id || expected?.objective !== goal?.objective ||
-        expected?.status !== goal?.status
-      ) {
-        throw new GoalError("goalChanged");
-      }
-      if (action.kind !== "set" && !goal) throw new GoalError("noGoal");
+      if (!matchesExpectedGoal(before, threadId, expected)) throw new GoalError("goalChanged");
+      if (action.kind !== "set" && !before.goal) throw new GoalError("noGoal");
 
       const args = action.kind === "set" ? action.objective : action.kind;
       await handle.send(`/goal ${args}`, { activeTurnBehavior: "steer" });

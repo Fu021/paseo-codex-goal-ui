@@ -73,6 +73,16 @@ export type Goal = z.infer<typeof goalSchema>;
 export type GoalSnapshot = z.infer<typeof snapshotSchema>;
 export type GoalAction = z.input<typeof changeGoal.input>["action"];
 
+export function matchesExpectedGoal(
+  snapshot: GoalSnapshot,
+  threadId: string | null,
+  expected: z.infer<typeof goalIdentity> | null,
+) {
+  const goal = snapshot.goal;
+  return (threadId === snapshot.threadId || (threadId === null && goal === null)) &&
+    expected?.id === goal?.id && expected?.objective === goal?.objective && expected?.status === goal?.status;
+}
+
 export function formatDuration(seconds: number) {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor(seconds / 60) % 60;
