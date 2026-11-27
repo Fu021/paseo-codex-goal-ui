@@ -24,7 +24,7 @@ These desktop and mobile layout previews are rendered in a browser with sample d
 
 ## Installation
 
-Requires Paseo client and daemon 0.17.4 or later, a version of Codex that supports `/goal` (Paseo's minimum is Codex CLI 0.128.0), and a plugin runtime with `node:sqlite` (Node.js 22.13 or later).
+Requires Paseo client and daemon 0.16.0 or later, a version of Codex that supports `/goal` (Paseo's minimum is Codex CLI 0.128.0), and a plugin runtime with `node:sqlite` (Node.js 22.13 or later).
 
 To install from npm, run these commands on the machine running the Paseo daemon:
 

@@ -10,6 +10,6 @@ Codex Goal 在 Agent 输入框旁显示当前 Codex 目标和累计耗时。点�
 
 每个目标属于自己的 Codex 会话。目标操作通过会话的 `/goal` 命令执行。插件从 Paseo 主机上的 Codex 本地 SQLite 数据库读取目标。Agent 运行时，界面会估算最近一次记录之后的耗时，并在 Codex 更新累计值时校准。
 
-需要 Paseo 0.17.4 或更新版本、Codex CLI 0.128.0 或更新版本，以及 Node.js 22.13 或更新版本的插件运行环境。插件显示在 Codex Agent 中。Paseo daemon 需要访问 npm 注册表以下载插件及其锁定的运行依赖。
+需要 Paseo 0.16.0 或更新版本、Codex CLI 0.128.0 或更新版本，以及 Node.js 22.13 或更新版本的插件运行环境。插件显示在 Codex Agent 中。Paseo daemon 需要访问 npm 注册表以下载插件及其锁定的运行依赖。
 
 插件从主机的 Codex 数据目录读取目标内容、状态和累计耗时，仅在你操作控件时向选中的 Paseo Agent 发送目标命令。Codex 可能会将目标内容包含在发送给其模型提供商的提示中。

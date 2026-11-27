@@ -24,7 +24,7 @@
 
 ## 安装
 
-需要 Paseo 客户端和 daemon 0.17.4 或更新版本、支持 `/goal` 的 Codex（Paseo 的最低版本要求为 Codex CLI 0.128.0），以及提供 `node:sqlite` 的插件运行时（Node.js 22.13+）。
+需要 Paseo 客户端和 daemon 0.16.0 或更新版本、支持 `/goal` 的 Codex（Paseo 的最低版本要求为 Codex CLI 0.128.0），以及提供 `node:sqlite` 的插件运行时（Node.js 22.13+）。
 
 在运行 Paseo daemon 的机器上执行以下命令，从 npm 安装插件：
 
