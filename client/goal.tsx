@@ -2,13 +2,14 @@ import {
   type PluginButtonContentProps,
   type PluginButtonIconProps,
   type PluginHostProps,
+  useHosts,
   useRpc,
   useTranslation,
 } from "@getpaseo/plugin/client";
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { AppState, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import {
   changeGoal,
   formatDuration,
@@ -28,13 +29,30 @@ function goalKey(hostId: string, agentId: string) {
 
 function useGoal(hostId: string, agentId: string) {
   const read = useRpc(readGoal);
-  return useQuery({
+  const host = useHosts().find(({ serverId }) => serverId === hostId);
+  const reachable = !host || host.status === "online";
+  const state = useQuery({
     queryKey: goalKey(hostId, agentId),
     queryFn: () => unwrapGoal(read({ agentId })),
+    enabled: reachable,
     staleTime: 1000,
-    retry: false,
-    refetchInterval: ({ state }) => state.data?.goal?.status === "active" ? 3000 : 10000,
+    retry: 1,
+    retryDelay: 750,
+    refetchInterval: ({ state }) =>
+      state.status === "error" || state.data?.goal?.status === "active" ? 3000 : 10000,
   });
+
+  const { isError, errorUpdatedAt, dataUpdatedAt, refetch } = state;
+  const readFailed = isError || errorUpdatedAt > dataUpdatedAt;
+  useEffect(() => {
+    if (Platform.OS === "web" || !reachable || !readFailed) return;
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (next === "active") void refetch({ cancelRefetch: false });
+    });
+    return () => subscription.remove();
+  }, [reachable, readFailed, refetch]);
+
+  return { state, readFailed };
 }
 
 function useGoalTime(snapshot: GoalSnapshot | undefined, receivedAt: number, stale: boolean) {
@@ -56,6 +74,14 @@ function useGoalTime(snapshot: GoalSnapshot | undefined, receivedAt: number, sta
 }
 
 export type GoalSubscriptionStatus = "ready" | "failed" | "retrying";
+
+const warningIcon = {
+  svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 2.2 18a2 2 0 0 0 1.7 3h16.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/></svg>',
+};
+
+function GoalWarningIcon({ theme, size }: Pick<PluginHostProps, "theme"> & { size: number }) {
+  return <Icon icon={warningIcon} color={theme.colors.statusWarning} size={size} />;
+}
 
 function GoalStatusIcon({
   status, theme, size,
@@ -85,7 +111,7 @@ export function createGoalIcon(
       if (unavailable) updateButton("Goal", failureTitle);
     }, [unavailable, failureTitle]);
     if (unavailable) {
-      return <Icon name="TriangleAlert" color={props.theme.colors.statusWarning} size={props.size} />;
+      return <GoalWarningIcon theme={props.theme} size={props.size} />;
     }
     return props.context === "agent" ? <GoalIndicator {...props} updateButton={updateButton} /> : null;
   };
@@ -96,16 +122,16 @@ function GoalIndicator({
 }: Extract<PluginButtonIconProps, { context: "agent" }> & {
   updateButton: (label: string, title: string) => void;
 }) {
-  const { data, dataUpdatedAt, isError } = useGoal(host.id, agentId);
+  const { state: { data, dataUpdatedAt }, readFailed } = useGoal(host.id, agentId);
   const { t } = useTranslation(messages);
   const goal = data?.goal;
-  const status = isError ? t("readFailed") : goal ? t(`status.${goal.status}`) : null;
-  const { seconds } = useGoalTime(data, dataUpdatedAt, isError);
+  const status = readFailed ? t("readFailed") : goal ? t(`status.${goal.status}`) : null;
+  const { seconds } = useGoalTime(data, dataUpdatedAt, readFailed);
   const elapsed = seconds === undefined ? null : formatDuration(seconds);
-  const label = elapsed ?? (isError ? t("readFailed") : "Goal");
+  const label = elapsed ?? (readFailed ? t("readFailed") : "Goal");
   const title = ["Codex Goal", status, elapsed && t("elapsed", { time: elapsed })].filter(Boolean).join(" · ");
   useEffect(() => updateButton(label, title), [label, title, updateButton]);
-  if (isError) return <Icon name="TriangleAlert" color={theme.colors.statusWarning} size={size} />;
+  if (readFailed) return <GoalWarningIcon theme={theme} size={size} />;
   if (goal) return <GoalStatusIcon status={goal.status} theme={theme} size={size} />;
   return <Icon name="Target" color={color} size={size} />;
 }
@@ -134,7 +160,7 @@ export function GoalSubscriptionNotice({
   return (
     <View style={{ gap: 10, paddingVertical: 4 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-        <Icon name="TriangleAlert" color={colors.statusWarning} size={16} />
+        <GoalWarningIcon theme={theme} size={16} />
         <Text style={{ color: colors.foreground, fontWeight: "600", flexShrink: 1 }}>{t("syncFailed")}</Text>
       </View>
       <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted }}>
@@ -161,10 +187,21 @@ export function GoalSubscriptionNotice({
   );
 }
 
+function GoalReadError({ theme, message }: Pick<PluginHostProps, "theme"> & { message: string }) {
+  return (
+    <View style={styles.statusRow}>
+      <GoalWarningIcon theme={theme} size={16} />
+      <Text accessibilityLiveRegion="polite" style={{ color: theme.colors.foreground, flexShrink: 1 }}>
+        {message}
+      </Text>
+    </View>
+  );
+}
+
 function GoalControls({
   theme, host, agentId, layout, maxObjectiveHeight,
 }: Extract<PluginButtonContentProps, { context: "agent" }> & { maxObjectiveHeight?: number }) {
-  const state = useGoal(host.id, agentId);
+  const { state, readFailed } = useGoal(host.id, agentId);
   const { t } = useTranslation(messages);
   const cache = useQueryClient();
   const change = useRpc(changeGoal);
@@ -189,24 +226,27 @@ function GoalControls({
   const { colors } = theme;
   const actionProps = { theme, compact: layout.compact };
   const snapshot = state.data;
-  const error = mutation.error ?? state.error;
-  const errorMessage = error instanceof GoalError ? t(`error.${error.code}`) :
-    error ? t(mutation.error ? "error.changeRequest" : "error.readRequest") : null;
+  const readError = state.error instanceof GoalError ? t(`error.${state.error.code}`) :
+    readFailed ? t("error.readRequest") : null;
+  const changeError = mutation.error instanceof GoalError ? t(`error.${mutation.error.code}`) :
+    mutation.error ? t("error.changeRequest") : null;
   if (!snapshot) {
     return (
       <View style={{ gap: 10 }}>
-        <Text style={{ color: colors.foreground }} accessibilityLiveRegion="polite">
-          {errorMessage ?? t("loading")}
-        </Text>
-        {state.isError && (
-          <Action {...actionProps} icon="RotateCw" label={t("action.retry")} disabled={state.isFetching} onPress={() => void state.refetch()} />
+        {readError ? (
+          <GoalReadError theme={theme} message={readError} />
+        ) : (
+          <Text style={{ color: colors.foreground }} accessibilityLiveRegion="polite">{t("loading")}</Text>
+        )}
+        {readFailed && (
+          <Action {...actionProps} icon="RotateCw" label={t("action.retry")} disabled={state.isFetching} onPress={() => void state.refetch({ cancelRefetch: false })} />
         )}
       </View>
     );
   }
 
   const goal = snapshot.goal;
-  const busy = mutation.isPending || state.isError;
+  const busy = mutation.isPending || readFailed;
   const editing = Boolean(draft) || !goal;
   const objective = draft?.objective ?? "";
   const normalized = objective.trim();
@@ -230,7 +270,7 @@ function GoalControls({
             </View>
             <View style={styles.statusText}>
               <Text style={{ color: colors.foreground, fontWeight: "600" }}>{t(`status.${goal.status}`)}</Text>
-              <GoalTime theme={theme} snapshot={snapshot} receivedAt={state.dataUpdatedAt} stale={state.isError} />
+              <GoalTime theme={theme} snapshot={snapshot} receivedAt={state.dataUpdatedAt} stale={readFailed} />
             </View>
           </View>
           {goal.status === "blocked" && (
@@ -285,9 +325,10 @@ function GoalControls({
         )}
       </View>
 
-      {(invalidObjective || errorMessage) && (
+      {readError && <GoalReadError theme={theme} message={readError} />}
+      {(invalidObjective || changeError) && (
         <Text accessibilityLiveRegion="polite" style={{ color: colors.foreground }}>
-          {invalidObjective ? t("error.invalidObjective") : errorMessage}
+          {invalidObjective ? t("error.invalidObjective") : changeError}
         </Text>
       )}
 
@@ -328,8 +369,8 @@ function GoalControls({
             <Action {...actionProps} icon="Trash2" label={t("action.clear")} destructive disabled={busy} onPress={() => setConfirmClear(snapshot)} />
           </>
         )}
-        {state.isError && (
-          <Action {...actionProps} icon="RotateCw" label={t("action.retry")} disabled={state.isFetching} onPress={() => void state.refetch()} />
+        {readFailed && (
+          <Action {...actionProps} icon="RotateCw" label={t("action.retry")} disabled={state.isFetching} onPress={() => void state.refetch({ cancelRefetch: false })} />
         )}
       </View>
       {mutation.isPending && (
