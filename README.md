@@ -26,14 +26,16 @@ These desktop and mobile layout previews are rendered in a browser with sample d
 
 Requires Paseo client and daemon 0.17.4 or later, a version of Codex that supports `/goal` (Paseo's minimum is Codex CLI 0.128.0), and a plugin runtime with `node:sqlite` (Node.js 22.13 or later).
 
-To install directly from GitHub, run these commands on the machine running the Paseo daemon:
+To install from npm, run these commands on the machine running the Paseo daemon:
 
 ```sh
-paseo plugin install git:Fu021/paseo-codex-goal-ui
+paseo plugin install npm:codex-goal
 paseo plugin ls
 ```
 
-This requires Paseo plugins to be enabled and trusted, and the daemon must be able to access GitHub and the npm registry.
+This requires Paseo plugins to be enabled and trusted, and the daemon must be able to access the npm registry.
+
+If you installed the Git edition under the `codex-goal-ui` ID, record any custom shortcuts before removing it. Install the npm edition, then reapply your shortcuts in Settings → Plugins → Codex Goal. Your goals are stored by Codex and remain available.
 
 For local development, install dependencies and run the checks in this directory:
 

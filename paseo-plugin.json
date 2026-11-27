@@ -1,5 +1,5 @@
 {
-  "id": "codex-goal-ui",
+  "id": "codex-goal",
   "name": "Codex Goal",
   "description": "View and manage Codex goals in Paseo.",
   "icon": "assets/icon.png",
@@ -10,7 +10,6 @@
       "description": "在 Paseo 中查看和管理 Codex 目标。"
     }
   },
-  "build": [["npm", "ci", "--omit=dev", "--ignore-scripts"]],
   "requirements": {
     "paseo": ">=0.17.4"
   }

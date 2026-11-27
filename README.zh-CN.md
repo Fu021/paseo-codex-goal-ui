@@ -26,14 +26,16 @@
 
 需要 Paseo 客户端和 daemon 0.17.4 或更新版本、支持 `/goal` 的 Codex（Paseo 的最低版本要求为 Codex CLI 0.128.0），以及提供 `node:sqlite` 的插件运行时（Node.js 22.13+）。
 
-插件可以在运行 Paseo daemon 的机器上从 GitHub 直接安装：
+在运行 Paseo daemon 的机器上执行以下命令，从 npm 安装插件：
 
 ```sh
-paseo plugin install git:Fu021/paseo-codex-goal-ui
+paseo plugin install npm:codex-goal
 paseo plugin ls
 ```
 
-这需要启用并信任 Paseo 插件，且 daemon 能访问 GitHub 和 npm 注册表。
+这需要启用并信任 Paseo 插件，且 daemon 能访问 npm 注册表。
+
+如果已安装 ID 为 `codex-goal-ui` 的 Git 版，请在卸载前记下自定义快捷键。安装 npm 版后，可以在「设置 → 插件 → Codex Goal」中重新设置。目标记录由 Codex 保存，重装后仍可读取。
 
 本地开发时，在此目录安装依赖并运行检查。
 

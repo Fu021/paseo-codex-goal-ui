@@ -27,7 +27,7 @@ import { messages } from "./messages";
 import { GoalKeyboardScope, shortcutLabel } from "./shortcuts";
 
 function goalKey(hostId: string, agentId: string) {
-  return ["codex-goal-ui", hostId, agentId];
+  return ["codex-goal", hostId, agentId];
 }
 
 function useGoal(hostId: string, agentId: string) {
