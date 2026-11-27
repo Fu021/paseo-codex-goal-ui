@@ -10,6 +10,12 @@ Elapsed time is based on the seconds recorded by Codex. While a goal is active a
 
 The plugin reads only the current session's goal. Each operation is initiated by the user and executed through Paseo's native `/goal` command.
 
+## Keyboard shortcuts
+
+On desktop and web, shortcuts apply while the Goal panel has focus. The defaults are **Enter** to start or save, **Shift+Enter** for a new line, **E** to edit, **P** to pause or resume, **Delete** to open clear confirmation, and **R** to retry after a read or sync failure. On wide layouts, Paseo closes the panel with **Esc**.
+
+Under **Settings → Plugins → Codex Goal**, you can change the save, edit, pause/resume, clear, and retry bindings. Choose **Unassigned** to disable any of them and continue using the buttons. Settings are saved per Paseo host.
+
 These desktop and mobile layout previews are rendered in a browser with sample data.
 
 | Desktop | Mobile |

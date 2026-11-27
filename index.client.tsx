@@ -7,6 +7,7 @@ import {
 } from "@getpaseo/plugin/client";
 import { useSyncExternalStore } from "react";
 import { createGoalIcon, GoalPopover, GoalSubscriptionNotice, type GoalSubscriptionStatus } from "./client/goal";
+import { ShortcutSettings } from "./client/shortcuts";
 
 export default function contribute(client: PluginClientContext) {
   const lifetime = new AbortController();
@@ -39,9 +40,7 @@ export default function contribute(client: PluginClientContext) {
 
   function GoalContent(props: PluginButtonContentProps) {
     const current = useSubscriptionStatus();
-    return <GoalPopover {...props} notice={current === "ready" ? undefined : (
-      <GoalSubscriptionNotice theme={props.theme} retrying={current === "retrying"} onRetry={retry} />
-    )} />;
+    return <GoalPopover {...props} sync={current === "ready" ? undefined : { retrying: current === "retrying", onRetry: retry }} />;
   }
 
   function SubscriptionNotice(props: PluginComposerItemProps) {
@@ -139,12 +138,14 @@ export default function contribute(client: PluginClientContext) {
   }
 
   const removeNotice = client.addComposerItem({ id: "goal-subscription-notice", Component: SubscriptionNotice });
+  const removeSettings = client.addSettingsScreen({ id: "shortcuts", title: "Codex Goal", icon: "Keyboard", Component: ShortcutSettings });
   void observeAgents();
 
   return () => {
     clearTimeout(retryTimer);
     lifetime.abort();
     for (const id of pills.keys()) remove(id);
+    removeSettings();
     return removeNotice();
   };
 }

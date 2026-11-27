@@ -4,6 +4,8 @@ Codex Goal displays the current Codex goal and its elapsed time beside the agent
 
 The interface follows Paseo's language. It uses Simplified Chinese when selected and English for other languages. The composer button uses distinct icons for in-progress, paused, completed, blocked, usage-limited, and budget-limited goals. You can resume a blocked goal from the panel after resolving the blocker.
 
+Desktop and web users can start or save a goal, edit it, pause or resume, open clear confirmation, and retry with keyboard shortcuts inside the Goal panel. You can change or unassign each shortcut in Settings → Plugins → Codex Goal.
+
 If session sync fails, the plugin retries automatically. You can also retry from the Goal warning or, if the Goal button has yet to appear, from the composer's extra controls.
 
 Each goal belongs to its own Codex session. Goal changes use the session's `/goal` command. The plugin reads the session's goal from Codex's local SQLite database on the Paseo host. While the agent is running, the displayed elapsed time estimates time since the latest recorded update and is reconciled when Codex records more progress.

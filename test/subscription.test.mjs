@@ -22,6 +22,7 @@ function startPlugin(context, responses) {
     modules: {
       "@getpaseo/plugin/client": {},
       "./client/goal": { createGoalIcon: () => () => null },
+      "./client/shortcuts": { ShortcutSettings: () => null },
     },
     globals: {
       console: { warn() {} },
@@ -36,6 +37,7 @@ function startPlugin(context, responses) {
   owner.restore();
   const stop = contribute({
     addComposerItem() { return () => {}; },
+    addSettingsScreen() { return () => {}; },
     addComposerPill({ agentId, workspaceId }) {
       assert.ok(!pills.has(agentId));
       registrations++;

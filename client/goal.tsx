@@ -4,11 +4,12 @@ import {
   type PluginHostProps,
   useHosts,
   useRpc,
+  useSettings,
   useTranslation,
 } from "@getpaseo/plugin/client";
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppState, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import {
   changeGoal,
@@ -21,7 +22,9 @@ import {
   type GoalAction,
   type GoalSnapshot,
 } from "../shared/goal";
+import { type GoalShortcuts, shortcutSettings } from "../shared/shortcuts";
 import { messages } from "./messages";
+import { GoalKeyboardScope, shortcutLabel } from "./shortcuts";
 
 function goalKey(hostId: string, agentId: string) {
   return ["codex-goal-ui", hostId, agentId];
@@ -137,25 +140,33 @@ function GoalIndicator({
   return <Icon name="Target" color={theme.colors.accent} size={size} />;
 }
 
-export function GoalPopover(props: PluginButtonContentProps & { notice?: ReactNode }) {
+type SubscriptionRetry = { retrying: boolean; onRetry: () => void };
+
+export function GoalPopover(props: PluginButtonContentProps & { sync?: SubscriptionRetry }) {
   const { width, height } = useWindowDimensions();
+  const settings = useSettings(shortcutSettings);
   if (props.context !== "agent") return null;
 
+  const bindings = Platform.OS === "web" && settings.status === "ready" ? settings.values : undefined;
   const contentWidth = props.layout.compact ? undefined : Math.min(394, Math.max(0, width - 56));
   const maxObjectiveHeight = props.layout.compact ? undefined : Math.min(300, Math.max(112, height - 168));
   return (
     <View style={{ width: contentWidth }}>
-      {props.notice}
-      <View style={props.notice ? { display: "none" } : undefined}>
-        <GoalControls key={props.agentId} {...props} maxObjectiveHeight={maxObjectiveHeight} />
+      {props.sync && (
+        <GoalKeyboardScope bindings={bindings} actions={{ retry: props.sync.retrying ? undefined : props.sync.onRetry }}>
+          <GoalSubscriptionNotice theme={props.theme} {...props.sync} shortcut={bindings?.retry} />
+        </GoalKeyboardScope>
+      )}
+      <View style={props.sync ? { display: "none" } : undefined}>
+        <GoalControls key={props.agentId} {...props} bindings={props.sync ? undefined : bindings} maxObjectiveHeight={maxObjectiveHeight} />
       </View>
     </View>
   );
 }
 
 export function GoalSubscriptionNotice({
-  theme, retrying, onRetry,
-}: Pick<PluginHostProps, "theme"> & { retrying: boolean; onRetry: () => void }) {
+  theme, retrying, onRetry, shortcut,
+}: Pick<PluginHostProps, "theme"> & SubscriptionRetry & { shortcut?: string }) {
   const { colors } = theme;
   const { t } = useTranslation(messages);
   return (
@@ -168,6 +179,7 @@ export function GoalSubscriptionNotice({
         {t(retrying ? "syncing" : "syncFailedDetail")}
       </Text>
       <Pressable
+        {...webShortcutProps(shortcut)}
         accessibilityRole="button"
         accessibilityState={{ disabled: retrying, busy: retrying }}
         disabled={retrying}
@@ -200,8 +212,8 @@ function GoalReadError({ theme, message }: Pick<PluginHostProps, "theme"> & { me
 }
 
 function GoalControls({
-  theme, host, agentId, layout, maxObjectiveHeight,
-}: Extract<PluginButtonContentProps, { context: "agent" }> & { maxObjectiveHeight?: number }) {
+  theme, host, agentId, layout, maxObjectiveHeight, bindings,
+}: Extract<PluginButtonContentProps, { context: "agent" }> & { maxObjectiveHeight?: number; bindings?: GoalShortcuts }) {
   const { state, readFailed } = useGoal(host.id, agentId);
   const { t } = useTranslation(messages);
   const cache = useQueryClient();
@@ -231,18 +243,20 @@ function GoalControls({
     readFailed ? t("error.readRequest") : null;
   const changeError = mutation.error instanceof GoalError ? t(`error.${mutation.error.code}`) :
     mutation.error ? t("error.changeRequest") : null;
+  const retry = readFailed && !state.isFetching ? () => void state.refetch({ cancelRefetch: false }) : undefined;
+  const retryAction = readFailed && (
+    <Action {...actionProps} icon="RotateCw" label={t("action.retry")} shortcut={bindings?.retry} onPress={retry} />
+  );
   if (!snapshot) {
     return (
-      <View style={{ gap: 10 }}>
+      <GoalKeyboardScope bindings={bindings} actions={{ retry }}>
         {readError ? (
           <GoalReadError theme={theme} message={readError} />
         ) : (
           <Text style={{ color: colors.foreground }} accessibilityLiveRegion="polite">{t("loading")}</Text>
         )}
-        {readFailed && (
-          <Action {...actionProps} icon="RotateCw" label={t("action.retry")} disabled={state.isFetching} onPress={() => void state.refetch({ cancelRefetch: false })} />
-        )}
-      </View>
+        {retryAction}
+      </GoalKeyboardScope>
     );
   }
 
@@ -254,12 +268,19 @@ function GoalControls({
   const invalidObjective = reservedObjectives.test(normalized);
   const submit = (action: GoalAction, base = snapshot) => mutation.mutate({ action, base });
   const canResume = goal && ["paused", "blocked", "usage_limited"].includes(goal.status);
+  const viewing = !editing && !confirmClear;
+  const save = !busy && editing && normalized && !invalidObjective && normalized !== goal?.objective
+    ? () => submit({ kind: "set", objective: normalized }, draft?.base) : undefined;
+  const edit = !busy && viewing && goal ? () => setDraft({ objective: goal.objective, base: snapshot }) : undefined;
+  const clear = !busy && viewing && goal ? () => setConfirmClear(snapshot) : undefined;
+  const pauseResume = !busy && viewing && (goal?.status === "active" || canResume)
+    ? () => submit({ kind: goal?.status === "active" ? "pause" : "resume" }) : undefined;
   const desktop = maxObjectiveHeight !== undefined;
   const currentText = editing ? objective : goal?.objective ?? "";
   const sizingText = currentText === "" || currentText.endsWith("\n") ? `${currentText}\u200B` : currentText;
 
   return (
-    <View style={{ gap: 12 }}>
+    <GoalKeyboardScope bindings={bindings} actions={{ save, edit, clear, pauseResume, retry }}>
       {goal ? (
         <View style={{ gap: 8 }}>
           <View style={styles.statusRow}>
@@ -300,6 +321,7 @@ function GoalControls({
         {editing && (
           <TextInput
             accessibilityLabel={t("objective")}
+            autoFocus={Platform.OS === "web" && (!layout.compact || Boolean(draft))}
             editable={!busy}
             multiline
             placeholder={t("placeholder")}
@@ -340,8 +362,10 @@ function GoalControls({
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {confirmClear ? (
           <>
-            <Action {...actionProps} icon="Trash2" label={t("action.confirmClear")} destructive disabled={busy} onPress={() => submit({ kind: "clear" }, confirmClear)} />
-            <Action {...actionProps} icon="X" label={t("action.cancel")} disabled={mutation.isPending} onPress={() => setConfirmClear(null)} />
+            <Action {...actionProps} key="cancel-clear" icon="X" label={t("action.cancel")} focusOnMount
+              onPress={mutation.isPending ? undefined : () => setConfirmClear(null)} />
+            <Action {...actionProps} key="confirm-clear" icon="Trash2" label={t("action.confirmClear")} destructive
+              onPress={busy ? undefined : () => submit({ kind: "clear" }, confirmClear)} />
           </>
         ) : editing ? (
           <>
@@ -349,35 +373,33 @@ function GoalControls({
               {...actionProps}
               icon={goal ? "Check" : "Play"}
               label={t(goal?.status === "active" ? "action.save" : goal ? "action.saveAndResume" : "action.start")}
-              disabled={busy || !normalized || invalidObjective || normalized === goal?.objective}
-              onPress={() => submit({ kind: "set", objective: normalized }, draft?.base)}
+              shortcut={bindings?.save}
+              onPress={save}
             />
             {goal && (
-              <Action {...actionProps} icon="X" label={t("action.cancel")} disabled={mutation.isPending} onPress={() => setDraft(null)} />
+              <Action {...actionProps} icon="X" label={t("action.cancel")} onPress={mutation.isPending ? undefined : () => setDraft(null)} />
             )}
           </>
         ) : (
           <>
             {goal?.status === "active" && (
-              <Action {...actionProps} icon="Pause" label={t("action.pause")} disabled={busy} onPress={() => submit({ kind: "pause" })} />
+              <Action {...actionProps} icon="Pause" label={t("action.pause")} shortcut={bindings?.pauseResume} onPress={pauseResume} />
             )}
             {canResume && (
-              <Action {...actionProps} icon="Play" label={t("action.resume")} disabled={busy} onPress={() => submit({ kind: "resume" })} />
+              <Action {...actionProps} icon="Play" label={t("action.resume")} shortcut={bindings?.pauseResume} onPress={pauseResume} />
             )}
             {goal && (
-              <Action {...actionProps} icon="Pencil" label={t("action.edit")} disabled={busy} onPress={() => setDraft({ objective: goal.objective, base: snapshot })} />
+              <Action {...actionProps} icon="Pencil" label={t("action.edit")} shortcut={bindings?.edit} onPress={edit} />
             )}
-            <Action {...actionProps} icon="Trash2" label={t("action.clear")} destructive disabled={busy} onPress={() => setConfirmClear(snapshot)} />
+            <Action {...actionProps} icon="Trash2" label={t("action.clear")} shortcut={bindings?.clear} destructive onPress={clear} />
           </>
         )}
-        {readFailed && (
-          <Action {...actionProps} icon="RotateCw" label={t("action.retry")} disabled={state.isFetching} onPress={() => void state.refetch({ cancelRefetch: false })} />
-        )}
+        {retryAction}
       </View>
       {mutation.isPending && (
         <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted }}>{t("updating")}</Text>
       )}
-    </View>
+    </GoalKeyboardScope>
   );
 }
 
@@ -423,22 +445,37 @@ function GoalTime({
   );
 }
 
+function webShortcutProps(shortcut: string | undefined) {
+  const ariaKey = shortcut === "Mod+Enter" ? "Control+Enter Meta+Enter" : shortcut;
+  return Platform.OS === "web" && ariaKey ? { "aria-keyshortcuts": ariaKey } : {};
+}
+
 function Action({
-  theme, compact, icon, label, disabled, destructive, onPress,
+  theme, compact, icon, label, destructive, onPress, shortcut, focusOnMount,
 }: Pick<PluginHostProps, "theme"> & {
   compact: boolean;
   icon: string;
   label: string;
-  disabled: boolean;
   destructive?: boolean;
-  onPress: () => void;
+  onPress?: () => void;
+  shortcut?: string;
+  focusOnMount?: boolean;
 }) {
   const { colors } = theme;
+  const { t } = useTranslation(messages);
   const [hovered, setHovered] = useState(false);
+  const button = useRef<View>(null);
+  const disabled = !onPress;
+  const key = shortcutLabel(shortcut);
+  useEffect(() => {
+    if (Platform.OS === "web" && focusOnMount) button.current?.focus();
+  }, [focusOnMount]);
   const height = compact ? 44 : 36;
   return (
     <View style={{ position: "relative", zIndex: hovered ? 1 : 0 }}>
       <Pressable
+        ref={button}
+        {...webShortcutProps(shortcut)}
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ disabled }}
@@ -476,7 +513,9 @@ function Action({
             backgroundColor: colors.surface2,
           }}
         >
-          <Text numberOfLines={1} style={{ color: colors.foreground, fontSize: 12 }}>{label}</Text>
+          <Text numberOfLines={1} style={{ color: colors.foreground, fontSize: 12 }}>
+            {key ? t("shortcutHint", { action: label, key }) : label}
+          </Text>
         </View>
       )}
     </View>

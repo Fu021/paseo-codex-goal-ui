@@ -2,6 +2,7 @@ import type { PluginHandlerContext, PluginServerContext } from "@getpaseo/plugin
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { changeGoal, estimateGoalSeconds, GoalError, readGoal, type GoalAction, type GoalSnapshot } from "./shared/goal";
+import { shortcutSettings } from "./shared/shortcuts";
 import { readNativeGoal, sqliteHome } from "./server/store";
 
 type Paseo = PluginHandlerContext["paseo"];
@@ -62,6 +63,7 @@ function hasApplied(action: GoalAction, before: GoalSnapshot, after: GoalSnapsho
 export default function contribute(server: PluginServerContext) {
   const pending = new Set<string>();
   const lifetime = new AbortController();
+  server.registerSettings(shortcutSettings);
   server.handle(readGoal, ({ agentId }, { paseo }) => goalResult(() => inspectGoal(paseo, agentId)));
   server.handle(changeGoal, ({ agentId, threadId, expected, action }, { paseo }) => goalResult(async () => {
     if (pending.has(agentId)) throw new GoalError("busy");

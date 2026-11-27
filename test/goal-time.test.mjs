@@ -7,11 +7,12 @@ import { test } from "node:test";
 import { loadTypeScript } from "./load-typescript.mjs";
 
 const goal = loadTypeScript(new URL("../shared/goal.ts", import.meta.url));
+const shortcuts = loadTypeScript(new URL("../shared/shortcuts.ts", import.meta.url));
 const store = loadTypeScript(new URL("../server/store.ts", import.meta.url), {
   modules: { "../shared/goal": goal },
 });
 const { default: contribute } = loadTypeScript(new URL("../index.server.ts", import.meta.url), {
-  modules: { "./shared/goal": goal, "./server/store": store },
+  modules: { "./shared/goal": goal, "./shared/shortcuts": shortcuts, "./server/store": store },
 });
 
 test("live time counts from the newer of the turn start and the goal update", () => {
@@ -45,7 +46,10 @@ test("goal reads stop estimating on pause, completion, blocking, or turn end and
     activeTurn: { startedAt: new Date(turnStart).toISOString() },
   };
   const handlers = new Map();
-  const stop = contribute({ handle: (rpc, handler) => handlers.set(rpc.name, handler) });
+  const stop = contribute({
+    handle: (rpc, handler) => handlers.set(rpc.name, handler),
+    registerSettings: (settings) => assert.equal(settings, shortcuts.shortcutSettings),
+  });
   context.after(stop);
 
   const paseo = {
