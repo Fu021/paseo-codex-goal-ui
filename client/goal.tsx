@@ -16,6 +16,7 @@ import {
   readGoal,
   reservedObjectives,
   unwrapGoal,
+  type Goal,
   type GoalAction,
   type GoalSnapshot,
 } from "../shared/goal";
@@ -56,11 +57,20 @@ function useGoalTime(snapshot: GoalSnapshot | undefined, receivedAt: number, sta
 
 export type GoalSubscriptionStatus = "ready" | "failed" | "retrying";
 
-const statusIcons = {
-  active: "CirclePlay",
-  paused: "CirclePause",
-  complete: "CircleCheck",
-} as const;
+function GoalStatusIcon({
+  status, theme, size,
+}: Pick<PluginHostProps, "theme"> & { status: Goal["status"]; size: number }) {
+  const { colors } = theme;
+  const { name, color } = {
+    active: { name: "CirclePlay", color: colors.accent },
+    paused: { name: "CirclePause", color: colors.statusWarning },
+    blocked: { name: "OctagonX", color: colors.statusDanger },
+    usage_limited: { name: "Clock", color: colors.statusWarning },
+    budget_limited: { name: "CircleDollarSign", color: colors.statusWarning },
+    complete: { name: "BadgeCheck", color: "#4f87d4" },
+  }[status];
+  return <Icon name={name} color={color} size={size} />;
+}
 
 export function createGoalIcon(
   updateButton: (label: string, title: string) => void,
@@ -95,16 +105,8 @@ function GoalIndicator({
   const label = elapsed ?? (isError ? t("readFailed") : "Goal");
   const title = ["Codex Goal", status, elapsed && t("elapsed", { time: elapsed })].filter(Boolean).join(" · ");
   useEffect(() => updateButton(label, title), [label, title, updateButton]);
-  const appearance = {
-    active: theme.colors.accent,
-    paused: theme.colors.statusWarning,
-    complete: theme.colors.statusSuccess,
-  };
-  const iconStatus = goal?.status;
   if (isError) return <Icon name="TriangleAlert" color={theme.colors.statusWarning} size={size} />;
-  if (iconStatus === "active" || iconStatus === "paused" || iconStatus === "complete") {
-    return <Icon name={statusIcons[iconStatus]} color={appearance[iconStatus]} size={size} />;
-  }
+  if (goal) return <GoalStatusIcon status={goal.status} theme={theme} size={size} />;
   return <Icon name="Target" color={color} size={size} />;
 }
 
@@ -160,7 +162,7 @@ export function GoalSubscriptionNotice({
 }
 
 function GoalControls({
-  theme, host, agentId, maxObjectiveHeight,
+  theme, host, agentId, layout, maxObjectiveHeight,
 }: Extract<PluginButtonContentProps, { context: "agent" }> & { maxObjectiveHeight?: number }) {
   const state = useGoal(host.id, agentId);
   const { t } = useTranslation(messages);
@@ -185,6 +187,7 @@ function GoalControls({
   });
 
   const { colors } = theme;
+  const actionProps = { theme, compact: layout.compact };
   const snapshot = state.data;
   const error = mutation.error ?? state.error;
   const errorMessage = error instanceof GoalError ? t(`error.${error.code}`) :
@@ -196,7 +199,7 @@ function GoalControls({
           {errorMessage ?? t("loading")}
         </Text>
         {state.isError && (
-          <Action theme={theme} icon="RotateCw" label={t("action.retry")} disabled={state.isFetching} onPress={() => void state.refetch()} />
+          <Action {...actionProps} icon="RotateCw" label={t("action.retry")} disabled={state.isFetching} onPress={() => void state.refetch()} />
         )}
       </View>
     );
@@ -217,9 +220,22 @@ function GoalControls({
   return (
     <View style={{ gap: 12 }}>
       {goal ? (
-        <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.foreground, fontWeight: "600" }}>{t(`status.${goal.status}`)}</Text>
-          <GoalTime theme={theme} snapshot={snapshot} receivedAt={state.dataUpdatedAt} stale={state.isError} />
+        <View style={{ gap: 8 }}>
+          <View style={styles.statusRow}>
+            <View
+              aria-hidden
+              style={[styles.statusTile, { backgroundColor: colors.surface1, borderColor: colors.border }]}
+            >
+              <GoalStatusIcon status={goal.status} theme={theme} size={layout.compact ? 20 : 18} />
+            </View>
+            <View style={styles.statusText}>
+              <Text style={{ color: colors.foreground, fontWeight: "600" }}>{t(`status.${goal.status}`)}</Text>
+              <GoalTime theme={theme} snapshot={snapshot} receivedAt={state.dataUpdatedAt} stale={state.isError} />
+            </View>
+          </View>
+          {goal.status === "blocked" && (
+            <Text style={{ color: colors.foregroundMuted }}>{t("blockedDetail")}</Text>
+          )}
         </View>
       ) : (
         <Text style={{ color: colors.foreground, fontWeight: "600" }}>{t("setup")}</Text>
@@ -282,38 +298,38 @@ function GoalControls({
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {confirmClear ? (
           <>
-            <Action theme={theme} icon="Trash2" label={t("action.confirmClear")} destructive disabled={busy} onPress={() => submit({ kind: "clear" }, confirmClear)} />
-            <Action theme={theme} icon="X" label={t("action.cancel")} disabled={mutation.isPending} onPress={() => setConfirmClear(null)} />
+            <Action {...actionProps} icon="Trash2" label={t("action.confirmClear")} destructive disabled={busy} onPress={() => submit({ kind: "clear" }, confirmClear)} />
+            <Action {...actionProps} icon="X" label={t("action.cancel")} disabled={mutation.isPending} onPress={() => setConfirmClear(null)} />
           </>
         ) : editing ? (
           <>
             <Action
-              theme={theme}
+              {...actionProps}
               icon={goal ? "Check" : "Play"}
               label={t(goal?.status === "active" ? "action.save" : goal ? "action.saveAndResume" : "action.start")}
               disabled={busy || !normalized || invalidObjective || normalized === goal?.objective}
               onPress={() => submit({ kind: "set", objective: normalized }, draft?.base)}
             />
             {goal && (
-              <Action theme={theme} icon="X" label={t("action.cancel")} disabled={mutation.isPending} onPress={() => setDraft(null)} />
+              <Action {...actionProps} icon="X" label={t("action.cancel")} disabled={mutation.isPending} onPress={() => setDraft(null)} />
             )}
           </>
         ) : (
           <>
             {goal?.status === "active" && (
-              <Action theme={theme} icon="Pause" label={t("action.pause")} disabled={busy} onPress={() => submit({ kind: "pause" })} />
+              <Action {...actionProps} icon="Pause" label={t("action.pause")} disabled={busy} onPress={() => submit({ kind: "pause" })} />
             )}
             {canResume && (
-              <Action theme={theme} icon="Play" label={t("action.resume")} disabled={busy} onPress={() => submit({ kind: "resume" })} />
+              <Action {...actionProps} icon="Play" label={t("action.resume")} disabled={busy} onPress={() => submit({ kind: "resume" })} />
             )}
             {goal && (
-              <Action theme={theme} icon="Pencil" label={t("action.edit")} disabled={busy} onPress={() => setDraft({ objective: goal.objective, base: snapshot })} />
+              <Action {...actionProps} icon="Pencil" label={t("action.edit")} disabled={busy} onPress={() => setDraft({ objective: goal.objective, base: snapshot })} />
             )}
-            <Action theme={theme} icon="Trash2" label={t("action.clear")} destructive disabled={busy} onPress={() => setConfirmClear(snapshot)} />
+            <Action {...actionProps} icon="Trash2" label={t("action.clear")} destructive disabled={busy} onPress={() => setConfirmClear(snapshot)} />
           </>
         )}
         {state.isError && (
-          <Action theme={theme} icon="RotateCw" label={t("action.retry")} disabled={state.isFetching} onPress={() => void state.refetch()} />
+          <Action {...actionProps} icon="RotateCw" label={t("action.retry")} disabled={state.isFetching} onPress={() => void state.refetch()} />
         )}
       </View>
       {mutation.isPending && (
@@ -324,6 +340,23 @@ function GoalControls({
 }
 
 const styles = StyleSheet.create({
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  statusTile: {
+    width: 36,
+    height: 36,
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusText: {
+    flexShrink: 1,
+    gap: 3,
+  },
   objectiveText: {
     padding: 11,
     fontSize: 14,
@@ -349,8 +382,9 @@ function GoalTime({
 }
 
 function Action({
-  theme, icon, label, disabled, destructive, onPress,
+  theme, compact, icon, label, disabled, destructive, onPress,
 }: Pick<PluginHostProps, "theme"> & {
+  compact: boolean;
   icon: string;
   label: string;
   disabled: boolean;
@@ -359,6 +393,7 @@ function Action({
 }) {
   const { colors } = theme;
   const [hovered, setHovered] = useState(false);
+  const height = compact ? 44 : 36;
   return (
     <View style={{ position: "relative", zIndex: hovered ? 1 : 0 }}>
       <Pressable
@@ -370,16 +405,18 @@ function Action({
         onHoverIn={() => setHovered(true)}
         onHoverOut={() => setHovered(false)}
         style={({ pressed }) => ({
-          width: 40,
-          height: 36,
-          borderRadius: 7,
+          width: compact ? 44 : 40,
+          height,
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: colors.border,
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: hovered || pressed ? colors.surface2 : colors.surface1,
           opacity: disabled ? 0.55 : 1,
         })}
       >
-        <Icon name={icon} size={16} color={destructive ? colors.statusDanger : colors.foreground} />
+        <Icon name={icon} size={compact ? 20 : 16} color={destructive ? colors.statusDanger : colors.foreground} />
       </Pressable>
       {hovered && (
         <View
@@ -387,7 +424,7 @@ function Action({
           aria-hidden
           style={{
             position: "absolute",
-            bottom: 40,
+            bottom: height + 4,
             left: 0,
             paddingHorizontal: 8,
             paddingVertical: 5,
