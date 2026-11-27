@@ -75,26 +75,27 @@ function useGoalTime(snapshot: GoalSnapshot | undefined, receivedAt: number, sta
 
 export type GoalSubscriptionStatus = "ready" | "failed" | "retrying";
 
+const warningColor = "#c09664";
+
 const warningIcon = {
   svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 2.2 18a2 2 0 0 0 1.7 3h16.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/></svg>',
 };
 
-function GoalWarningIcon({ theme, size }: Pick<PluginHostProps, "theme"> & { size: number }) {
-  return <Icon icon={warningIcon} color={theme.colors.statusWarning} size={size} />;
+const goalStatusIcons = {
+  active: { name: "CirclePlay", color: "#20744a" },
+  paused: { name: "CirclePause", color: warningColor },
+  blocked: { name: "OctagonX", color: "#d8847b" },
+  usage_limited: { name: "Clock", color: warningColor },
+  budget_limited: { name: "CircleDollarSign", color: warningColor },
+  complete: { name: "BadgeCheck", color: "#4f87d4" },
+} satisfies Record<Goal["status"], { name: string; color: string }>;
+
+function GoalWarningIcon({ size }: { size: number }) {
+  return <Icon icon={warningIcon} color={warningColor} size={size} />;
 }
 
-function GoalStatusIcon({
-  status, theme, size,
-}: Pick<PluginHostProps, "theme"> & { status: Goal["status"]; size: number }) {
-  const { colors } = theme;
-  const { name, color } = {
-    active: { name: "CirclePlay", color: colors.accent },
-    paused: { name: "CirclePause", color: colors.statusWarning },
-    blocked: { name: "OctagonX", color: colors.statusDanger },
-    usage_limited: { name: "Clock", color: colors.statusWarning },
-    budget_limited: { name: "CircleDollarSign", color: colors.statusWarning },
-    complete: { name: "BadgeCheck", color: "#4f87d4" },
-  }[status];
+function GoalStatusIcon({ status, size }: { status: Goal["status"]; size: number }) {
+  const { name, color } = goalStatusIcons[status];
   return <Icon name={name} color={color} size={size} />;
 }
 
@@ -111,14 +112,14 @@ export function createGoalIcon(
       if (unavailable) updateButton("Goal", failureTitle);
     }, [unavailable, failureTitle]);
     if (unavailable) {
-      return <GoalWarningIcon theme={props.theme} size={props.size} />;
+      return <GoalWarningIcon size={props.size} />;
     }
     return props.context === "agent" ? <GoalIndicator {...props} updateButton={updateButton} /> : null;
   };
 }
 
 function GoalIndicator({
-  host, agentId, color, size, theme, updateButton,
+  host, agentId, size, theme, updateButton,
 }: Extract<PluginButtonIconProps, { context: "agent" }> & {
   updateButton: (label: string, title: string) => void;
 }) {
@@ -131,9 +132,9 @@ function GoalIndicator({
   const label = elapsed ?? (readFailed ? t("readFailed") : "Goal");
   const title = ["Codex Goal", status, elapsed && t("elapsed", { time: elapsed })].filter(Boolean).join(" · ");
   useEffect(() => updateButton(label, title), [label, title, updateButton]);
-  if (readFailed) return <GoalWarningIcon theme={theme} size={size} />;
-  if (goal) return <GoalStatusIcon status={goal.status} theme={theme} size={size} />;
-  return <Icon name="Target" color={color} size={size} />;
+  if (readFailed) return <GoalWarningIcon size={size} />;
+  if (goal) return <GoalStatusIcon status={goal.status} size={size} />;
+  return <Icon name="Target" color={theme.colors.accent} size={size} />;
 }
 
 export function GoalPopover(props: PluginButtonContentProps & { notice?: ReactNode }) {
@@ -160,7 +161,7 @@ export function GoalSubscriptionNotice({
   return (
     <View style={{ gap: 10, paddingVertical: 4 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-        <GoalWarningIcon theme={theme} size={16} />
+        <GoalWarningIcon size={16} />
         <Text style={{ color: colors.foreground, fontWeight: "600", flexShrink: 1 }}>{t("syncFailed")}</Text>
       </View>
       <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted }}>
@@ -190,7 +191,7 @@ export function GoalSubscriptionNotice({
 function GoalReadError({ theme, message }: Pick<PluginHostProps, "theme"> & { message: string }) {
   return (
     <View style={styles.statusRow}>
-      <GoalWarningIcon theme={theme} size={16} />
+      <GoalWarningIcon size={16} />
       <Text accessibilityLiveRegion="polite" style={{ color: theme.colors.foreground, flexShrink: 1 }}>
         {message}
       </Text>
@@ -266,7 +267,7 @@ function GoalControls({
               aria-hidden
               style={[styles.statusTile, { backgroundColor: colors.surface1, borderColor: colors.border }]}
             >
-              <GoalStatusIcon status={goal.status} theme={theme} size={layout.compact ? 20 : 18} />
+              <GoalStatusIcon status={goal.status} size={layout.compact ? 20 : 18} />
             </View>
             <View style={styles.statusText}>
               <Text style={{ color: colors.foreground, fontWeight: "600" }}>{t(`status.${goal.status}`)}</Text>
