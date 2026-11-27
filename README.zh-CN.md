@@ -4,7 +4,7 @@
 
 在 Codex 会话的输入框旁显示 Goal 的累计运行时间。点开按钮可查看状态和完整目标、创建或编辑目标、暂停、继续和清除。
 
-界面跟随 Paseo 的语言设置，支持简体中文，其他语言使用英文。Goal 按钮用不同图标区分进行中、已暂停、已完成、受阻和用量或预算限制。排除阻碍后，可以从 Goal 面板继续。
+界面跟随 Paseo 的语言设置，支持简体中文，其他语言使用英文。Goal 按钮用八种图标区分状态，包括未设置目标和读取失败。桌面浮层和手机底部面板使用相同的状态配色。排除阻碍后，可以从 Goal 面板继续。
 
 累计时间以 Codex 已记录的秒数为准。Goal 活跃且会话正在运行时，界面会估算最近一次目标更新后的本轮耗时，并在 Codex 写入新的累计值时校准。暂停停止目标的后续推进，当前一轮仍可能继续。编辑使用原生 `/goal <目标>`，会尝试激活目标。
 
@@ -16,7 +16,7 @@
 
 在 **设置 → 插件 → Codex Goal** 中，保存键仍在下拉菜单中选择。要更改编辑、暂停或继续、清除确认或重试键，点当前键位后输入一个字母，或选择 **Delete**。选择「未设置」可停用快捷键。设置按 Paseo 主机保存。
 
-以下截图使用示例数据，分别在桌面和手机尺寸的浏览器里打开 Paseo。
+以下截图使用示例数据，展示桌面宽度和手机宽度下的 Paseo Goal 面板。
 
 | 桌面 | 手机 |
 | --- | --- |
@@ -70,7 +70,7 @@ paseo plugin ls
 
 暂存发布需要 Node.js 22.14 或更新版本、npm 11.15 或更新版本，以及有权发布此包并已启用双重验证的 npm 账户。
 
-1. 更新 `package.json` 和 `npm-shrinkwrap.json` 中的版本号，运行开发检查，再用 `npm pack --dry-run --ignore-scripts` 检查包内容。
+1. 更新 `package.json` 和 `npm-shrinkwrap.json` 中的版本号。运行开发检查，再用 `npm pack --dry-run --ignore-scripts` 确认双语介绍和全部截图都在包内。将发布提交推送到 `main`，等待 CI 通过。
 2. 运行 `npm stage publish` 暂存包，用 `npm stage list codex-goal` 查找暂存 ID，再执行 `npm stage approve <暂存 ID>` 并完成 npm 双重验证，正式发布。
 3. 在测试 daemon 上用 `paseo plugin install npm:codex-goal@<版本号>` 安装该版本，确认插件正在运行并试用 Goal 面板。
 4. 查看 Paseo 注册表为 `fu021/codex-goal` 自动创建的更新 PR。Paseo 审核并合并后，市场才会提供新版本。

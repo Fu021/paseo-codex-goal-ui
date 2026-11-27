@@ -1,6 +1,6 @@
 {
   "name": "codex-goal",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "View and manage Codex goals in Paseo.",
   "repository": {
     "type": "git",

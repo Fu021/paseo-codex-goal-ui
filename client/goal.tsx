@@ -95,12 +95,20 @@ function GoalStatusIcon({ status, size }: { status: keyof typeof goalStatusIcons
   return <Icon name={name} color={color} size={size} />;
 }
 
-function GoalWarningIcon({ size, chineseTextOffset = 0 }: { size: number; chineseTextOffset?: number }) {
-  const { locale } = useTranslation(messages);
-  const translateY = locale.startsWith("zh") ? chineseTextOffset : 0;
+function GoalPillIcon({ status, chineseLabel = false }: { status: keyof typeof goalStatusIcons; chineseLabel?: boolean }) {
   return (
-    <View style={{ width: size, height: size, flexShrink: 0, transform: [{ translateY }] }}>
-      <GoalStatusIcon status="unavailable" size={size} />
+    <View style={{ transform: [{ translateY: chineseLabel ? 0.5 : -0.5 }] }}>
+      <GoalStatusIcon status={status} size={16} />
+    </View>
+  );
+}
+
+const panelStatusIconSize = 22;
+
+function GoalWarningIcon() {
+  return (
+    <View style={{ flexShrink: 0 }}>
+      <GoalStatusIcon status="unavailable" size={panelStatusIconSize} />
     </View>
   );
 }
@@ -118,29 +126,34 @@ export function createGoalIcon(
       if (unavailable) updateButton("Goal", failureTitle);
     }, [unavailable, failureTitle]);
     if (unavailable) {
-      return <GoalWarningIcon size={props.size} />;
+      return <GoalPillIcon status="unavailable" />;
     }
     return props.context === "agent" ? <GoalIndicator {...props} updateButton={updateButton} /> : null;
   };
 }
 
 function GoalIndicator({
-  host, agentId, layout, size, updateButton,
+  host, agentId, layout, updateButton,
 }: Extract<PluginButtonIconProps, { context: "agent" }> & {
   updateButton: (label: string, title: string) => void;
 }) {
   const { state: { data, dataUpdatedAt }, readFailed } = useGoal(host.id, agentId);
-  const { t } = useTranslation(messages);
+  const { t, locale } = useTranslation(messages);
   const goal = data?.goal;
   const status = readFailed ? t("readFailed") : goal ? t(`status.${goal.status}`) : null;
   const { seconds } = useGoalTime(data, dataUpdatedAt, readFailed);
   const elapsed = seconds === undefined ? null : formatDuration(seconds);
-  const label = elapsed ?? (readFailed ? t("readFailed") : "Goal");
+  const showReadFailure = readFailed && elapsed === null;
+  const label = elapsed ?? (showReadFailure ? t("pillReadFailed") : "Goal");
   const title = layout.compact ? "Goal" :
     ["Codex Goal", status, elapsed && t("elapsed", { time: elapsed })].filter(Boolean).join(" · ");
   useEffect(() => updateButton(label, title), [label, title, updateButton]);
-  if (readFailed) return <GoalWarningIcon size={size} chineseTextOffset={elapsed === null ? 1.5 : 0} />;
-  return <GoalStatusIcon status={goal?.status ?? "unset"} size={size} />;
+  return (
+    <GoalPillIcon
+      status={readFailed ? "unavailable" : goal?.status ?? "unset"}
+      chineseLabel={showReadFailure && locale.startsWith("zh")}
+    />
+  );
 }
 
 type SubscriptionRetry = { retrying: boolean; onRetry: () => void };
@@ -174,9 +187,9 @@ export function GoalSubscriptionNotice({
   const { t } = useTranslation(messages);
   return (
     <View style={{ gap: 10, paddingVertical: 4 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-        <GoalWarningIcon size={16} chineseTextOffset={2} />
-        <Text style={{ color: colors.foreground, fontWeight: "600", flexShrink: 1 }}>{t("syncFailed")}</Text>
+      <View style={styles.statusRow}>
+        <GoalWarningIcon />
+        <Text style={[styles.statusLabel, { color: colors.foreground, fontWeight: "600" }]}>{t("syncFailed")}</Text>
       </View>
       <Text accessibilityLiveRegion="polite" style={{ color: colors.foregroundMuted }}>
         {t(retrying ? "syncing" : "syncFailedDetail")}
@@ -206,8 +219,8 @@ export function GoalSubscriptionNotice({
 function GoalReadError({ theme, message }: Pick<PluginHostProps, "theme"> & { message: string }) {
   return (
     <View style={styles.statusRow}>
-      <GoalWarningIcon size={16} chineseTextOffset={2} />
-      <Text accessibilityLiveRegion="polite" style={{ color: theme.colors.foreground, flexShrink: 1 }}>
+      <GoalWarningIcon />
+      <Text accessibilityLiveRegion="polite" style={[styles.statusLabel, { color: theme.colors.foreground }]}>
         {message}
       </Text>
     </View>
@@ -299,10 +312,10 @@ function GoalControls({
             aria-hidden
             style={[styles.statusTile, { backgroundColor: colors.surface1, borderColor: colors.border }]}
           >
-            <GoalStatusIcon status={goal?.status ?? "unset"} size={layout.compact ? 20 : 18} />
+            <GoalStatusIcon status={goal?.status ?? "unset"} size={panelStatusIconSize} />
           </View>
           <View style={styles.statusText}>
-            <Text style={{ color: colors.foreground, fontWeight: "600" }}>{goal ? t(`status.${goal.status}`) : t("setup")}</Text>
+            <Text style={[styles.statusLabel, { color: colors.foreground, fontWeight: "600" }]}>{goal ? t(`status.${goal.status}`) : t("setup")}</Text>
             {goal && (
               <GoalTime theme={theme} snapshot={snapshot} receivedAt={state.dataUpdatedAt} stale={readFailed} />
             )}
@@ -431,6 +444,10 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     gap: 3,
   },
+  statusLabel: {
+    flexShrink: 1,
+    includeFontPadding: false,
+  },
   objectiveText: {
     padding: 11,
     fontSize: 14,
@@ -449,7 +466,7 @@ function GoalTime({
   const { t } = useTranslation(messages);
   if (seconds === undefined) return null;
   return (
-    <Text style={{ color: theme.colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+    <Text style={[styles.statusLabel, { color: theme.colors.foregroundMuted, fontVariant: ["tabular-nums"] }]}>
       {t("elapsed", { time: formatDuration(seconds) })}
     </Text>
   );
@@ -505,7 +522,7 @@ function Action({
           opacity: disabled ? 0.55 : 1,
         })}
       >
-        <Icon name={icon} size={compact ? 20 : 16} color={destructive ? colors.statusDanger : colors.foreground} />
+        <Icon name={icon} size={20} color={destructive ? colors.statusDanger : colors.foreground} />
       </Pressable>
       {hovered && (
         <View

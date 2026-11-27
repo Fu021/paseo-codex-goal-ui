@@ -4,7 +4,7 @@
 
 Codex Goal displays the current goal's elapsed time beside the composer in Codex sessions. Open the button to view its status and full objective, create or edit a goal, pause, resume, or clear it.
 
-The interface follows Paseo's language setting: Simplified Chinese is available, and other languages use English. The Goal button uses distinct icons for active, paused, completed, blocked, usage-limited, and budget-limited goals. Once a blocker is resolved, you can resume from the Goal panel.
+The interface follows Paseo's language setting, with Simplified Chinese available and English as the fallback. The Goal button uses eight distinct icons, including when no goal is set or the goal could not be read. The same status colors appear in the desktop popover and mobile sheet. Once a blocker is resolved, you can resume from the Goal panel.
 
 Elapsed time is based on the seconds recorded by Codex. While a goal is active and the session is running, the interface estimates the time since the last recorded update and reconciles it when Codex writes a new total. Pausing stops further goal progress, though the current turn may continue. Editing uses the native `/goal <objective>` command and attempts to activate the goal.
 
@@ -16,7 +16,7 @@ On desktop and web, shortcuts apply while the Goal panel has focus. The defaults
 
 Under **Settings → Plugins → Codex Goal**, choose the save binding from its dropdown. To change an edit, pause/resume, clear, or retry binding, click its current key and type one letter or choose **Delete**. Choose **Unassigned** to disable a shortcut. Settings are saved per Paseo host.
 
-These Paseo screenshots use sample data in desktop and mobile-sized browsers.
+These screenshots show the Goal panel in Paseo at desktop and mobile widths using sample data.
 
 | Desktop | Mobile |
 | --- | --- |
@@ -70,7 +70,7 @@ Publish new versions through the [codex-goal npm package](https://www.npmjs.com/
 
 Staged publishing requires Node.js 22.14 or later, npm 11.15 or later, and an npm account with publish access and two-factor authentication enabled.
 
-1. Update the version in `package.json` and `npm-shrinkwrap.json`, run the development checks, and inspect the package with `npm pack --dry-run --ignore-scripts`.
+1. Update the version in `package.json` and `npm-shrinkwrap.json`. Run the development checks and use `npm pack --dry-run --ignore-scripts` to verify that both listings and all screenshots are included. Push the release commit to `main` and wait for CI to pass.
 2. Stage the package with `npm stage publish`. Use `npm stage list codex-goal` to find the stage ID, then run `npm stage approve <stage-id>` and complete npm two-factor authentication to publish it.
 3. On a test daemon, install the exact release with `paseo plugin install npm:codex-goal@<version>`, check that it is running, and exercise the Goal panel.
 4. Check the automatic update PR for `fu021/codex-goal` in the Paseo registry. The marketplace serves the new version after Paseo approves and merges that update.

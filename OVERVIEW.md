@@ -10,7 +10,7 @@ Requires Paseo 0.16.0 or later, Codex CLI 0.128.0 or later, and a plugin runtime
 
 ## Controls and shortcuts
 
-Each goal state has its own icon and color. When there is no goal, the panel opens an editor. After resolving a blocker, choose Resume to continue. If session sync fails, the plugin retries automatically. To retry manually, open the warning or use the composer's extra controls.
+The Goal button shows a distinct icon and color for each state, including when there is no goal or it could not be read. Open it in the desktop popover or mobile sheet to see the details or set a new goal. After resolving a blocker, choose Resume to continue. If session sync fails, the plugin retries automatically. To retry manually, open the warning or use the composer's extra controls.
 
 On desktop and web, use keyboard shortcuts inside the Goal panel to start or save, edit, pause or resume, open clear confirmation, or retry. Change or unassign shortcuts in Settings → Plugins → Codex Goal. The plugin interface follows Paseo's language, with English and Simplified Chinese available.
 
