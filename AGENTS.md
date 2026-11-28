@@ -1,14 +1,15 @@
 # Paseo 插件 Codex Goal
 
 - GitHub 源码仓库为 `Fu021/paseo-codex-goal`，主分支为 `main`。公开 npm 包名为 `codex-goal`，Paseo 市场条目 ID 为 `fu021/codex-goal`。
-- `index.client.tsx` 注册 Paseo 界面，`client/` 包含 Goal 面板、翻译和快捷键设置。`index.server.ts` 处理目标操作，`server/store.ts` 以只读方式查询 Codex 的 SQLite 数据库，`shared/` 定义 RPC 和设置。目标变更通过所选会话的原生 `/goal` 命令执行。
-- 最低版本为 Paseo 0.16.0、Codex CLI 0.128.0 和 Node.js 22.13（插件运行环境）。使用 Paseo 的公开 SDK。
+- `index.client.tsx` 注册 Paseo 界面，`client/` 包含 Goal 面板、翻译和快捷键设置。`index.server.ts` 处理目标操作并注册聊天工具 `codex_goal_manage`，`server/store.ts` 以只读方式查询 Codex 的 SQLite 数据库，`shared/` 定义 RPC 和设置。面板和聊天工具通过各自会话的原生 `/goal` 命令修改目标。
+- 最低版本为 Paseo 0.17.0、Codex CLI 0.128.0 和 Node.js 22.13（插件运行环境）。使用 Paseo 的公开 SDK。
 
 ## 开发与测试
 
 - 遇到复杂任务，或用户持续提出需要排队的任务时，主动创建 Goal 或更新现有 Goal，记录待办与进展，并随任务变化及时维护。
 - 运行 `npm ci --ignore-scripts`、`npm run typecheck` 和 `npm test`。GitHub Actions 使用 Node.js 22 和 24 进行检查。
 - 在隔离的 Paseo daemon 上验证运行时变更。修改界面后，检查桌面宽屏和手机窄屏布局，包括图标与文字对齐、固定状态配色和清除确认。修改快捷键后，在桌面端或网页端将焦点放在面板内进行验证。
+- 修改聊天工具后，在全新 Codex 会话中用普通消息验证工具选择。新建 Goal 应更换 ID 并重新计时，修改和追加应保留 ID 和累计时间。
 - 长期复用的工具链放在持久目录。验证完成后，清理一次性测试 daemon、打包产物和预览文件。
 
 ## 插件市场

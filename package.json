@@ -1,7 +1,7 @@
 {
   "name": "codex-goal",
-  "version": "0.1.7",
-  "description": "View and manage Codex goals in Paseo.",
+  "version": "0.1.8",
+  "description": "Track Codex goal time and manage goals from the Paseo panel or chat.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Fu021/paseo-codex-goal.git"
@@ -34,7 +34,7 @@
     "@iarna/toml": "2.2.5"
   },
   "devDependencies": {
-    "@getpaseo/plugin": "0.16.0",
+    "@getpaseo/plugin": "0.17.0",
     "@tanstack/react-query": "^5.90.11",
     "@types/node": "^22.13.0",
     "@types/react": "~19.2.0",

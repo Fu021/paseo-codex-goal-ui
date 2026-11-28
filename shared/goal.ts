@@ -48,6 +48,10 @@ export const readGoal = defineRpc({
 });
 
 export const reservedObjectives = /^(pause|resume|clear)$/i;
+export const goalObjective = z.string().trim().min(1).refine(
+  (objective) => !reservedObjectives.test(objective),
+  "The goal cannot be pause, resume, or clear.",
+);
 
 export const changeGoal = defineRpc({
   name: "goal.change",
@@ -58,10 +62,7 @@ export const changeGoal = defineRpc({
     action: z.discriminatedUnion("kind", [
       z.object({
         kind: z.literal("set"),
-        objective: z.string().trim().min(1).refine(
-          (objective) => !reservedObjectives.test(objective),
-          "The goal cannot be pause, resume, or clear.",
-        ),
+        objective: goalObjective,
       }),
       z.object({ kind: z.enum(["pause", "resume", "clear"]) }),
     ]),

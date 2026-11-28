@@ -50,8 +50,8 @@ test("goal reads stop estimating on pause, completion, blocking, or turn end and
     thread_id TEXT PRIMARY KEY, goal_id TEXT, objective TEXT, status TEXT,
     time_used_seconds INTEGER, updated_at_ms INTEGER
   )`);
-  database.prepare("INSERT INTO thread_goals VALUES (?, ?, ?, ?, ?, ?)")
-    .run("thread", "goal", "Run checks", "active", 200, turnStart - 60_000);
+  const insert = database.prepare("INSERT INTO thread_goals VALUES (?, ?, ?, ?, ?, ?)");
+  insert.run("thread", "goal", "Run checks", "active", 200, turnStart - 60_000);
   const update = database.prepare("UPDATE thread_goals SET status = ?, time_used_seconds = ?, updated_at_ms = ?");
   const agent = {
     provider: "codex",
@@ -61,11 +61,27 @@ test("goal reads stop estimating on pause, completion, blocking, or turn end and
     activeTurn: { startedAt: new Date(turnStart).toISOString() },
   };
   const handlers = new Map();
+  let openSession;
   const stop = contribute({
     handle: (rpc, handler) => handlers.set(rpc.name, handler),
     registerSettings: (settings) => assert.equal(settings, shortcuts.shortcutSettings),
+    addHook: (name, handler) => {
+      assert.equal(name, "agent.open.before");
+      openSession = handler;
+      return () => {};
+    },
   });
   context.after(stop);
+
+  const request = { provider: "codex", purpose: "interactive", background: false, tools: [], appendSystemPrompt: ["Existing instructions"] };
+  assert.equal(await openSession({ request: { ...request, provider: "claude" } }), undefined);
+  assert.equal(await openSession({ request: { ...request, purpose: "history" } }), undefined);
+  assert.equal(await openSession({ request: { ...request, background: true } }), undefined);
+  const opened = await openSession({ request });
+  assert.equal(opened.appendSystemPrompt[0], "Existing instructions");
+  assert.match(opened.appendSystemPrompt[1], /missing prerequisite/);
+  const [tool] = opened.tools;
+  assert.equal(tool.name, "codex_goal_manage");
 
   const paseo = {
     agents: {
@@ -112,8 +128,52 @@ test("goal reads stop estimating on pause, completion, blocking, or turn end and
   assert.equal(resumed.goal.status, "active");
   assert.equal(resumed.liveSeconds, 207);
 
+  update.run("blocked", 206, turnStart + 19_000);
+  const toolContext = { agent: { id: "agent" }, paseo, signal: new AbortController().signal };
+  const toolRead = await tool.execute({ action: { kind: "read" } }, toolContext);
+  assert.equal(toolRead.structuredContent.goal.status, "blocked");
+  const toolResume = await tool.execute({ action: { kind: "resume" } }, toolContext);
+  assert.equal(toolResume.structuredContent.goal.id, blocked.goal.id);
+  assert.equal(toolResume.structuredContent.goal.status, "active");
+
   agent.status = "idle";
   const idle = await read();
   assert.equal(idle.liveSeconds, null);
   assert.equal(idle.goal.seconds, 206);
+
+  const commands = [];
+  const handle = paseo.agents.ref();
+  const editContext = { ...toolContext, paseo: { ...paseo, agents: { ref: () => handle } } };
+  let newGoalCount = 0;
+  handle.send = async (command) => {
+    commands.push(command);
+    if (command === "/goal clear") {
+      database.exec("DELETE FROM thread_goals WHERE thread_id = 'thread'");
+      return;
+    }
+    const objective = command.slice("/goal ".length);
+    const row = database.prepare("SELECT goal_id FROM thread_goals WHERE thread_id = 'thread'").get();
+    if (row) database.prepare("UPDATE thread_goals SET objective = ? WHERE thread_id = 'thread'").run(objective);
+    else insert.run("thread", `new-goal-${++newGoalCount}`, objective, "active", 0, Date.now());
+  };
+  const rewrite = await tool.execute({ action: { kind: "set", objective: "Run regressions" } }, editContext);
+  assert.equal(rewrite.structuredContent.goal.id, "goal");
+  assert.equal(rewrite.structuredContent.goal.seconds, 206);
+  const append = await tool.execute({ action: { kind: "append", objective: "Review logs" } }, editContext);
+  assert.equal(append.structuredContent.goal.id, "goal");
+  assert.equal(append.structuredContent.goal.seconds, 206);
+  assert.equal(append.structuredContent.goal.objective, "Run regressions\n\nReview logs");
+  assert.deepEqual(commands.splice(0), ["/goal Run regressions", "/goal Run regressions\n\nReview logs"]);
+
+  const objective = append.structuredContent.goal.objective;
+  let previousGoal = append.structuredContent.goal;
+  for (const status of goal.goalSchema.shape.status.options) {
+    update.run(status, 206, turnStart + 19_000);
+    const create = await tool.execute({ action: { kind: "create", objective } }, editContext);
+    assert.notEqual(create.structuredContent.goal.id, previousGoal.id, status);
+    assert.equal(create.structuredContent.goal.seconds, 0, status);
+    assert.equal(create.structuredContent.goal.status, "active", status);
+    assert.deepEqual(commands.splice(0), ["/goal clear", `/goal ${objective}`], status);
+    previousGoal = create.structuredContent.goal;
+  }
 });

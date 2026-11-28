@@ -1,16 +1,16 @@
 {
   "id": "codex-goal",
   "name": "Codex Goal",
-  "description": "View and manage Codex goals in Paseo.",
+  "description": "Track Codex goal time and manage goals from the Paseo panel or chat.",
   "icon": "assets/icon.png",
   "media": ["assets/market.png", "assets/desktop.png", "assets/mobile.png"],
   "translations": {
     "zh-CN": {
       "name": "Codex Goal",
-      "description": "在 Paseo 中查看和管理 Codex 目标。"
+      "description": "在 Paseo 面板或聊天中管理 Codex 目标并查看累计时间。"
     }
   },
   "requirements": {
-    "paseo": ">=0.16.0"
+    "paseo": ">=0.17.0"
   }
 }

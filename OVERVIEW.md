@@ -6,7 +6,7 @@ The plugin reads the session's goal from Codex's local SQLite database and uses 
 
 ## Requirements
 
-Requires Paseo 0.16.0 or later, Codex CLI 0.128.0 or later, and a plugin runtime with Node.js 22.13 or later. Enable plugins on the Paseo host where Codex runs. The daemon needs access to the npm registry to download the reviewed package and its runtime dependency.
+Requires Paseo 0.17.0 or later, Codex CLI 0.128.0 or later, and a plugin runtime with Node.js 22.13 or later. Enable plugins on the Paseo host where Codex runs. The daemon needs access to the npm registry to download the reviewed package and its runtime dependency.
 
 ## Controls and shortcuts
 
@@ -14,6 +14,8 @@ The Goal button shows a distinct icon and color for each state, including when t
 
 On desktop and web, use keyboard shortcuts inside the Goal panel to start or save, edit, pause or resume, open clear confirmation, or retry. Change or unassign shortcuts in Settings → Plugins → Codex Goal. The plugin interface follows Paseo's language, with English and Simplified Chinese available.
 
+Ask Codex in chat to view, pause, resume, or clear the current goal. Starting a new goal clears the old one and resets the timer. Editing or appending keeps the elapsed time. Codex can also resume a blocked goal when you supply what it needs to continue. Enable Paseo tool injection on the host and allow Paseo tools for the Codex provider. Calls follow Codex's MCP approval policy.
+
 ## Data access
 
-The plugin reads the goal objective, status and elapsed time from the host's Codex data directory. It sends goal commands to the selected Paseo agent only when you use its controls. Goal text may be included in prompts sent by Codex to its configured model provider.
+The plugin reads the goal objective, status and elapsed time from the host's Codex data directory. Panel controls and chat tool calls send goal commands to their own session. Goal text may be included in prompts sent by Codex to its configured model provider.

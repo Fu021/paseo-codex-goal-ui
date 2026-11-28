@@ -8,7 +8,13 @@ The interface follows Paseo's language setting, with Simplified Chinese availabl
 
 Elapsed time is based on the seconds recorded by Codex. While a goal is active and the session is running, the interface estimates the time since the last recorded update and reconciles it when Codex writes a new total. Pausing stops further goal progress, though the current turn may continue. Editing uses the native `/goal <objective>` command and attempts to activate the goal.
 
-The plugin reads only the current session's goal. Each operation is initiated by the user and executed through Paseo's native `/goal` command.
+The plugin reads only the current session's goal and applies changes through Paseo's native `/goal` command.
+
+## Manage goals in chat
+
+Ask Codex to “Start a new Goal to run the regression tests” to clear the old goal and start the timer from zero. Say “Change the current Goal to running the regression tests” or “Add checking the logs to the current Goal” to keep the elapsed time. Both edits activate the current goal, including a goal that was blocked. You can also ask Codex to check, pause, resume, or clear it. The tool guides Codex to track complex work and resume a blocked goal when your reply resolves the blocker. A paused goal stays paused during unrelated chat.
+
+Enable Paseo tool injection under **Settings → your host → Agents** and allow Paseo tools for the Codex provider. Existing sessions pick up the tool when they reopen. The plugin instructs Codex to use `codex_goal_manage` for these chat actions. Codex may ask for approval according to its MCP tool policy. Codex records completion and blockers through its built-in Goal lifecycle.
 
 ## Keyboard shortcuts
 
@@ -26,7 +32,7 @@ These screenshots show the Goal panel in Paseo at desktop and mobile widths usin
 
 ## Installation
 
-Requires Paseo client and daemon 0.16.0 or later, a version of Codex that supports `/goal` (Paseo's minimum is Codex CLI 0.128.0), and a plugin runtime with `node:sqlite` (Node.js 22.13 or later).
+Requires Paseo client and daemon 0.17.0 or later, a version of Codex that supports `/goal` (Paseo's minimum is Codex CLI 0.128.0), and a plugin runtime with `node:sqlite` (Node.js 22.13 or later).
 
 Install the reviewed release from the [Paseo plugin marketplace](https://paseo.sh/plugins/fu021/codex-goal). Run the CLI commands on the machine running the Paseo daemon.
 
